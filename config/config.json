@@ -1,0 +1,26 @@
+{
+  "development": {
+    "username": "climaxDb_guidetried",
+    "password": "8b4d73b810e3841998d98c8f845eb6c298dbcbbb",
+    "database": "climaxDb_guidetried",
+    "host": "uq7.h.filess.io",
+    "port": 3307,
+    "dialect": "mysql"
+  },
+  "test": {
+    "username": "climaxDb_guidetried",
+    "password": "8b4d73b810e3841998d98c8f845eb6c298dbcbbb",
+    "database": "climaxDb_guidetried",
+    "host": "uq7.h.filess.io",
+    "port": 3307,
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "climaxDb_guidetried",
+    "password": "8b4d73b810e3841998d98c8f845eb6c298dbcbbb",
+    "database": "climaxDb_guidetried",
+    "host": "uq7.h.filess.io",
+    "port": 3307,
+    "dialect": "mysql"
+  }
+}
