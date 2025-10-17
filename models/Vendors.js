@@ -36,6 +36,7 @@ module.exports = (sequelize, DataTypes) => {
           type:DataTypes.BOOLEAN
           // defaultValue:0.0
         },
+        nongl: { type:DataTypes.STRING },
         climaxId: { type:DataTypes.INTEGER },
     })
     return Vendors;
