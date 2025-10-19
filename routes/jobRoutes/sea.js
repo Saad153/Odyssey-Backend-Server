@@ -1410,12 +1410,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges.JobBill.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
             invoiceType = "Job Bill"
             partyType = "vendor"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
           }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
@@ -1470,13 +1470,13 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Job Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "SE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -1574,11 +1574,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -1587,11 +1604,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -1680,13 +1714,13 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Agent Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "SE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -1785,11 +1819,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -1798,11 +1849,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -1891,12 +1959,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges.JobInvoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
             invoiceType = "Job Invoice"
             partyType = "client"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
           }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
@@ -1952,13 +2020,13 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "JI"
+              let invoiceiType = "Job Invoice"
               let invoicePayType = "Recievable"
               let invoiceOperation = "SE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -1999,6 +2067,20 @@ routes.post("/UploadSEJobs", async (req, res) => {
                       ChildAccountId: account.id
                     }
                   })
+                }
+                if(!CA){
+                  CA = await Client_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  if(!CA){
+                    CA = await Vendor_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  }
                 }
               }
   
@@ -2044,11 +2126,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -2057,11 +2156,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -2124,13 +2240,13 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
-              let invoicePayType = "Payble"
+              let invoiceiType = "Agent Invoice"
+              let invoicePayType = "Recievable"
               let invoiceOperation = "SE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -2229,11 +2345,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -2242,11 +2375,28 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -2631,12 +2781,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges.JobBill.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
             invoiceType = "Job Bill"
             partyType = "vendor"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
           }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
@@ -2691,13 +2841,13 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Job Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "SI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -2794,12 +2944,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                temp?
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                }):null
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -2808,12 +2974,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                }):null
+                }
               }
               if(!p){
                 // console.log(party)
@@ -2902,13 +3084,13 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Agent Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "SI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -3007,11 +3189,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -3020,11 +3219,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -3087,12 +3303,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges.JobInvoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
             invoiceType = "Job Invoice"
             partyType = "client"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
           }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
@@ -3148,13 +3364,13 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "JI"
+              let invoiceiType = "Job Invoice"
               let invoicePayType = "Recievable"
               let invoiceOperation = "SI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -3195,6 +3411,20 @@ routes.post("/UploadSIJobs", async (req, res) => {
                       ChildAccountId: account.id
                     }
                   })
+                }
+                if(!CA){
+                  CA = await Client_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  if(!CA){
+                    CA = await Vendor_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  }
                 }
               }
   
@@ -3240,12 +3470,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                temp?
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                }):null
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -3254,12 +3500,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                }):null
+                }
               }
               if(!p){
                 // console.log(party)
@@ -3348,13 +3610,13 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
-              let invoicePayType = "Payble"
+              let invoiceiType = "Agent Invoice"
+              let invoicePayType = "Recievable"
               let invoiceOperation = "SI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -3452,11 +3714,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -3465,11 +3744,28 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -3748,12 +4044,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges.JobBill.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
             invoiceType = "Job Bill"
             partyType = "vendor"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
           }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
@@ -3772,9 +4068,9 @@ routes.post("/UploadAEJobs", async (req, res) => {
             size_type: CP.EquipCode,
             dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
             qty: CP.Quantity,
-            rate_charge: "1",
+            rate_charge: CP.Rate,
             currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
+            amount: "1",
             discount: CP.DiscountAmount,
             taxPerc: 0,
             tax_apply: CP.TaxAmount > 0 ? true : false,
@@ -3808,13 +4104,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Job Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "AE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -3912,11 +4208,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -3925,11 +4238,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -4018,13 +4348,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Agent Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "AE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -4123,11 +4453,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -4136,11 +4483,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -4229,15 +4593,15 @@ routes.post("/UploadAEJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges.JobInvoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
             invoiceType = "Job Invoice"
             partyType = "client"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
+            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.Id.toString()}})
           }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
+            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.Id.toString()}})
             
           }
           let ChargeP = {
@@ -4254,9 +4618,9 @@ routes.post("/UploadAEJobs", async (req, res) => {
             size_type: CP.EquipCode,
             dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
             qty: CP.Quantity,
-            rate_charge: "1",
+            rate_charge: CP.Rate,
             currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
+            amount: "1",
             discount: CP.DiscountAmount,
             taxPerc: 0,
             tax_apply: CP.TaxAmount > 0 ? true : false,
@@ -4290,13 +4654,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "JI"
+              let invoiceiType = "Job Invoice"
               let invoicePayType = "Recievable"
               let invoiceOperation = "AE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -4337,6 +4701,20 @@ routes.post("/UploadAEJobs", async (req, res) => {
                       ChildAccountId: account.id
                     }
                   })
+                }
+                if(!CA){
+                  CA = await Client_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  if(!CA){
+                    CA = await Vendor_Associations.findOne({
+                      where: {
+                        ChildAccountId: account.id
+                      }
+                    })
+                  }
                 }
               }
   
@@ -4382,11 +4760,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -4395,11 +4790,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -4462,13 +4874,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
-              let invoicePayType = "Payble"
+              let invoiceiType = "Agent Invoice"
+              let invoicePayType = "Recievable"
               let invoiceOperation = "AE"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -4567,11 +4979,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -4580,11 +5009,28 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -4858,12 +5304,12 @@ routes.post("/UploadAIJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges.JobBill.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
             invoiceType = "Job Bill"
             partyType = "vendor"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
           }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
@@ -4882,9 +5328,9 @@ routes.post("/UploadAIJobs", async (req, res) => {
             size_type: CP.EquipCode,
             dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
             qty: CP.Quantity,
-            rate_charge: "1",
+            rate_charge: CP.Rate,
             currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
+            amount: "1",
             discount: CP.DiscountAmount,
             taxPerc: 0,
             tax_apply: CP.TaxAmount > 0 ? true : false,
@@ -4918,13 +5364,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Job Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "AI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -5022,11 +5468,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -5035,11 +5498,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -5128,13 +5608,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
+              let invoiceiType = "Agent Bill"
               let invoicePayType = "Payble"
               let invoiceOperation = "AI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -5233,11 +5713,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -5246,11 +5743,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -5339,12 +5853,12 @@ routes.post("/UploadAIJobs", async (req, res) => {
           let partyType
           let invoice
           if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges.JobInvoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
             invoiceType = "Job Invoice"
             partyType = "client"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
           }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.InvoiceNumber
+            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
             invoiceType = "Agent Invoice"
             partyType = "agent"
             invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
@@ -5364,9 +5878,9 @@ routes.post("/UploadAIJobs", async (req, res) => {
             size_type: CP.EquipCode,
             dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
             qty: CP.Quantity,
-            rate_charge: "1",
+            rate_charge: CP.Rate,
             currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
+            amount: "1",
             discount: CP.DiscountAmount,
             taxPerc: 0,
             tax_apply: CP.TaxAmount > 0 ? true : false,
@@ -5400,13 +5914,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "JI"
+              let invoiceiType = "Job Invoice"
               let invoicePayType = "Recievable"
               let invoiceOperation = "AI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -5447,6 +5961,20 @@ routes.post("/UploadAIJobs", async (req, res) => {
                       ChildAccountId: account.id
                     }
                   })
+                }
+                if(!CA){
+                  CA = await Client_Associations.findOne({
+                    where: {
+                      ChildAccountId: account.id
+                    }
+                  })
+                  if(!CA){
+                    CA = await Vendor_Associations.findOne({
+                      where: {
+                        ChildAccountId: account.id
+                      }
+                    })
+                  }
                 }
               }
   
@@ -5492,11 +6020,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -5505,11 +6050,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
@@ -5572,13 +6134,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             if(!savedInvoice){
               let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "JB"
-              let invoicePayType = "Payble"
+              let invoiceiType = "Agent Invoice"
+              let invoicePayType = "Recievable"
               let invoiceOperation = "AI"
               let partyCode = 0
   
       
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE")){
+              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
               }else{
@@ -5677,11 +6239,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Vendors.findOne({
-                  where: {
-                    id: temp.VendorId
+                if(temp){
+                  p = await Vendors.findOne({
+                    where: {
+                      id: temp.VendorId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Client_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Clients.findOne({
+                      where: {
+                        id: temp.ClientId
+                      }
+                    })
                   }
-                })
+                }
               }else{
                 // console.log("------Client------")
                 let temp = await Client_Associations.findOne({
@@ -5690,11 +6269,28 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     ChildAccountId: CAID
                   }
                 })
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
+                if(temp){
+                  p = await Clients.findOne({
+                    where: {
+                      id: temp.ClientId
+                    }
+                  })
+                }
+                if(!p){
+                  let temp = await Vendor_Associations.findOne({
+                    where: {
+                      CompanyId: companyId,
+                      ChildAccountId: CAID
+                    }
+                  })
+                  if(temp){
+                    p = await Vendors.findOne({
+                      where: {
+                        id: temp.VendorId
+                      }
+                    })
                   }
-                })
+                }
               }
               if(!p){
                 // console.log(party)
