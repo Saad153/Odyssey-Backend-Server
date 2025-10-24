@@ -1120,11 +1120,11 @@ routes.post("/importVouchers", async (req, res) => {
               narration: vh.NarrationVD,
               accountType: accountType,
               createdAt: Voucher.AddOn,
-              updatedAt: Voucher.EditOn,
+              updatedAt: Voucher.AddOn,
               VoucherId: Voucher.id,
               ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`)?.id,
             },
-            { transaction: t }
+            { transaction: t, silent: true }
           );
         }
 
@@ -1294,10 +1294,10 @@ routes.post("/importV", async (req, res) => {
               VoucherId: result3.dataValues.id,
               ChildAccountId: CAID,
               createdAt: voucher.AddOn,
-              updatedAt: voucher.EditOn
+              updatedAt: voucher.AddOn
             };
       
-            await Voucher_Heads.create(voucher_head);
+            await Voucher_Heads.create(voucher_head, { silent: true });
           }
         }else{
           console.log(v.voucher_Id)
@@ -1563,11 +1563,11 @@ routes.post("/importI", async (req, res) => {
             narration: vh.NarrationVD,
             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
             createdAt: vch.AddOn,
-            updatedAt: vch.EditOn,
+            updatedAt: vch.AddOn,
             VoucherId: vch.id,
             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
           }
-          await Voucher_Heads.create(Voucher_Head);
+          await Voucher_Heads.create(Voucher_Head, {silent: true});
         }
       }
     }
