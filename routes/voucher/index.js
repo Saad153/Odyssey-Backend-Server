@@ -1080,11 +1080,11 @@ routes.post("/importVouchers", async (req, res) => {
             partyType: isPayable ? "vendor" : "client",
             tranDate: voucher.VoucherDate,
             createdBy: voucher.AddLog,
-            createdAt: voucher.AddOn,
-            updatedAt: voucher.EditOn,
+            createdAt: moment(voucher.AddOn),
+            updatedAt: voucher.EditOn?moment(voucher.EditOn):moment(voucher.AddOn),
             CompanyId: companyId,
           },
-          { transaction: t }
+          { transaction: t, silent: true }
         );
 
         // ========================
@@ -1119,8 +1119,8 @@ routes.post("/importVouchers", async (req, res) => {
               type: vh.DebitLC == 0 ? "credit" : "debit",
               narration: vh.NarrationVD,
               accountType: accountType,
-              createdAt: Voucher.AddOn,
-              updatedAt: Voucher.AddOn,
+              createdAt: Voucher.createdAt,
+              updatedAt: Voucher.updatedAt,
               VoucherId: Voucher.id,
               ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`)?.id,
             },
@@ -1134,7 +1134,7 @@ routes.post("/importVouchers", async (req, res) => {
         let invoiceList = [];
         for (let it of voucher.GL_InvAdjustments) {
           let Inv = await Invoice.findOne({
-            where: { invoice_No: it.GL_Invoices.InvoiceNumber },
+            where: { climaxId: it.GL_Invoices.Id.toString() },
             transaction: t,
           });
 
@@ -1158,7 +1158,7 @@ routes.post("/importVouchers", async (req, res) => {
                 InvoiceId: Inv.id,
                 VoucherId: Voucher.id,
               },
-              { transaction: t }
+              { transaction: t, silent: true }
             );
 
             invoiceList.push(Inv.id);
@@ -1231,8 +1231,8 @@ routes.post("/importV", async (req, res) => {
           partyType: headCOA?.GL_COASubCategory?.SubCategory || "client",
           CompanyId: companyId,
           voucherNarration: voucher.Narration,
-          createdAt: voucher.AddOn,
-          updatedAt: voucher.EditOn
+          createdAt: moment(voucher.AddOn),
+          updatedAt: voucher.EditOn?moment(voucher.EditOn):moment(voucher.AddOn)
         };
 
         const temp = await Vouchers.findOne({
@@ -1242,7 +1242,7 @@ routes.post("/importV", async (req, res) => {
         })
 
         if(!temp){
-          const result3 = await Vouchers.create(v);
+          const result3 = await Vouchers.create(v, { silent: true });
       
           for (let vh of voucher.GL_Voucher_Detail) {
             let CAID = 0;
@@ -1293,14 +1293,14 @@ routes.post("/importV", async (req, res) => {
               accountType: accountType,
               VoucherId: result3.dataValues.id,
               ChildAccountId: CAID,
-              createdAt: voucher.AddOn,
-              updatedAt: voucher.AddOn
+              createdAt: result3.createdAt,
+              updatedAt: result3.updatedAt
             };
       
             await Voucher_Heads.create(voucher_head, { silent: true });
           }
         }else{
-          console.log(v.voucher_Id)
+          console.log("Exists: ", v.voucher_Id)
         }
     
       } catch (e) {
@@ -1454,12 +1454,12 @@ routes.post("/importI", async (req, res) => {
           companyId: companyId,
           partyType: ipartyType,
           note: i.Remarks,
-          createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-          updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
           // SEJobId: savedJob.id,
           climaxId: i.Id
         }
-        savedInvoice = await Invoice.create(inv)
+        savedInvoice = await Invoice.create(inv, {silent: true});
 
         // if(!invoice){
         //   savedCP.update({InvoiceId:savedInvoice.id})
@@ -1549,11 +1549,11 @@ routes.post("/importI", async (req, res) => {
           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
           tranDate: i.GL_Voucher.VoucherDate,
           createdBy: i.GL_Voucher.AddLog,
-          createdAt: i.GL_Voucher.AddOn,
-          updatedAt: i.GL_Voucher.EditOn,
+          createdAt: moment(i.GL_Voucher.AddOn),
+          updatedAt: i.GL_Voucher.EditOn?moment(i.GL_Voucher.EditOn):moment(i.GL_Voucher.AddOn) || moment().format("YYYY-MM-DD"),
           CompanyId: companyId,
           invoice_Id: savedInvoice.id
-        })
+        }, {silent: true});
 
         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
           let Voucher_Head = {
@@ -1562,8 +1562,8 @@ routes.post("/importI", async (req, res) => {
             type: vh.DebitLC == 0 ? "credit" : "debit",
             narration: vh.NarrationVD,
             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-            createdAt: vch.AddOn,
-            updatedAt: vch.AddOn,
+            createdAt: vch.createdAt,
+            updatedAt: vch.updatedAt || moment().format("YYYY-MM-DD"),
             VoucherId: vch.id,
             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
           }

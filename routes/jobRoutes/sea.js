@@ -1215,7 +1215,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
         departureDate: "",
         departureTime: "",
         createdAt: job.AddOn,
-        updatedAt: job.EditOn,
+        updatedAt: job.EditOn?job.EditOn:job.AddOn,
         ClientId: Client?.id,
         VoyageId: voyage?.id,
         salesRepresentatorId: '3d237d09-d8ba-47f1-8764-22cff8e11639',
@@ -1247,9 +1247,9 @@ routes.post("/UploadSEJobs", async (req, res) => {
             gross: equip.Gen_EquipmentSizeType.PerUnitWeight,
             teu: equip.Gen_EquipmentSizeType.Teus,
             createdAt: job.AddOn,
-            updatedAt: job.EditOn,
+            updatedAt: job.EditOn?job.EditOn:job.AddOn,
             SEJobId: savedJob.id,
-          })
+          }, {silent: true})
         }
       }
 
@@ -1330,7 +1330,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
           ccTotal: "0",
           applyToCWT: "0",
           createdAt: bl.AddOn,
-          updatedAt: bl.EditOn,
+          updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
           // notifyPartyOneId: 1,
           // notifyPartyTwoId: 1,
@@ -1367,7 +1367,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
               front: e.OOG_FRONT,
               back: e.OOG_BACK,
               createdAt: bl.AddOn,
-              updatedAt: bl.EditOn,
+              updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
               BlId: savedBl.id,
             })
           }
@@ -1380,7 +1380,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
               stamps: s.Gen_Stamps?.StampName,
               stamp_group: s.StampGroupId,
               createdAt: bl.AddOn,
-              updatedAt: bl.EditOn,
+              updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
               BlId: savedBl.id,
             })
           }
@@ -1554,12 +1554,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -1676,10 +1676,10 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -1689,11 +1689,11 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -1799,12 +1799,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -1921,10 +1921,10 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true })
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -1934,11 +1934,11 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -2103,15 +2103,15 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
               if(!inv.party_Id){
                 console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -2202,10 +2202,10 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -2215,11 +2215,11 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -2325,12 +2325,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -2421,10 +2421,10 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -2434,11 +2434,11 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -2555,8 +2555,8 @@ routes.post("/UploadSIJobs", async (req, res) => {
         // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
-        transportCheck: job.TransporterId ? "" : "Transport"  ,
-        customCheck: job.CustomClearanceId ? "" : "Custom Clearance",
+        transportCheck: Transporter ? "" : "Transport"  ,
+        customCheck: CustomClearance ? "" : "Custom Clearance",
         etd: job.PlannedETD,
         eta: job.PlannedETA,
         // cbkg: 1,
@@ -2586,7 +2586,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
         departureDate: "",
         departureTime: "",
         createdAt: job.AddOn,
-        updatedAt: job.EditOn,
+        updatedAt: job.EditOn?job.EditOn:job.AddOn,
         ClientId: Client?.id,
         VoyageId: voyage?.id,
         salesRepresentatorId: '3d237d09-d8ba-47f1-8764-22cff8e11639',
@@ -2618,9 +2618,9 @@ routes.post("/UploadSIJobs", async (req, res) => {
             gross: equip.Gen_EquipmentSizeType.PerUnitWeight,
             teu: equip.Gen_EquipmentSizeType.Teus,
             createdAt: job.AddOn,
-            updatedAt: job.EditOn,
+            updatedAt: job.EditOn?job.EditOn:job.AddOn,
             SEJobId: savedJob.id,
-          })
+          }, {silent: true})
         }
       }
 
@@ -2701,7 +2701,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
           ccTotal: "0",
           applyToCWT: "0",
           createdAt: bl.AddOn,
-          updatedAt: bl.EditOn,
+          updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
           // notifyPartyOneId: 1,
           // notifyPartyTwoId: 1,
@@ -2738,7 +2738,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
         //       front: e.OOG_FRONT,
         //       back: e.OOG_BACK,
         //       createdAt: bl.AddOn,
-        //       updatedAt: bl.EditOn,
+        //       updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
         //       BlId: savedBl.id,
         //     })
         //   }
@@ -2751,7 +2751,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
         //       stamps: s.Gen_Stamps?.StampName,
         //       stamp_group: s.StampGroupId,
         //       createdAt: bl.AddOn,
-        //       updatedAt: bl.EditOn,
+        //       updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
         //       BlId: savedBl.id,
         //     })
         //   }
@@ -2924,12 +2924,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -3046,10 +3046,10 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -3059,11 +3059,11 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -3169,12 +3169,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -3265,10 +3265,10 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -3278,11 +3278,11 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -3447,15 +3447,15 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
               if(!inv.party_Id){
                 console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -3572,10 +3572,10 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -3585,11 +3585,11 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -3694,12 +3694,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -3790,10 +3790,10 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -3803,11 +3803,11 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -3885,8 +3885,8 @@ routes.post("/UploadAEJobs", async (req, res) => {
         // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
-        transportCheck: job.TransporterId == null ? "" : "Transport"  ,
-        customCheck: job.CustomClearanceId == null ? "" : "Custom",
+        transportCheck: Transporter ? "" : "Transport"  ,
+        customCheck: CustomClearance ? "" : "Custom Clearance",
         etd: job.PlannedETD,
         eta: job.PlannedETA,
         // cbkg: 1,
@@ -3916,7 +3916,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
         departureDate: "",
         departureTime: "",
         createdAt: job.AddOn,
-        updatedAt: job.EditOn,
+        updatedAt: job.EditOn?job.EditOn:job.AddOn,
         ClientId: Client?.id,
         // VoyageId: voyage?.id,
         salesRepresentatorId: '3d237d09-d8ba-47f1-8764-22cff8e11639',
@@ -4013,7 +4013,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
           ccTotal: "0",
           applyToCWT: "0",
           createdAt: bl.AddOn,
-          updatedAt: bl.EditOn,
+          updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
           // notifyPartyOneId: 1,
           // notifyPartyTwoId: 1,
@@ -4188,12 +4188,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -4310,10 +4310,10 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -4323,11 +4323,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -4433,12 +4433,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -4555,10 +4555,10 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -4568,11 +4568,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -4737,15 +4737,15 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
               if(!inv.party_Id){
                 console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -4836,10 +4836,10 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -4849,11 +4849,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -4959,12 +4959,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -5055,10 +5055,10 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -5068,11 +5068,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -5145,9 +5145,9 @@ routes.post("/UploadAIJobs", async (req, res) => {
         // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
-        transportCheck: job.TransporterId == null ? "" : "Transport"  ,
-        customCheck: job.CustomClearanceId == null ? "" : "Custom",
-        etd: job.PlannedETD,
+        transportCheck: Transporter ? "" : "Transport"  ,
+        customCheck: CustomClearance ? "" : "Custom Clearance",
+        etd: job.PlannedETD,  
         eta: job.PlannedETA,
         // cbkg: 1,
         aesDate: job.AESDateTime,
@@ -5176,7 +5176,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
         departureDate: "",
         departureTime: "",
         createdAt: job.AddOn,
-        updatedAt: job.EditOn,
+        updatedAt: job.EditOn?job.EditOn:job.AddOn,
         ClientId: Client?.id,
         // VoyageId: voyage?.id,
         salesRepresentatorId: '3d237d09-d8ba-47f1-8764-22cff8e11639',
@@ -5273,7 +5273,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
           ccTotal: "0",
           applyToCWT: "0",
           createdAt: bl.AddOn,
-          updatedAt: bl.EditOn,
+          updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
           // notifyPartyOneId: 1,
           // notifyPartyTwoId: 1,
@@ -5448,12 +5448,12 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -5570,10 +5570,10 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -5583,11 +5583,11 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -5693,12 +5693,12 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -5815,10 +5815,10 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -5828,11 +5828,11 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -5997,15 +5997,15 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
               if(!inv.party_Id){
                 console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -6096,10 +6096,10 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -6109,11 +6109,11 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
@@ -6219,12 +6219,12 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 companyId: companyId,
                 partyType: ipartyType,
                 note: i.Remarks,
-                createdAt: i.AddOn || moment().format("YYYY-MM-DD"),
-                updatedAt: i.EditOn || moment().format("YYYY-MM-DD"),
+                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
                 SEJobId: savedJob.id,
                 climaxId: i.Id
               }
-              savedInvoice = await Invoice.create(inv)
+              savedInvoice = await Invoice.create(inv, { silent: true })
 
               if(!invoice){
                 savedCP.update({InvoiceId:savedInvoice.id})
@@ -6315,10 +6315,10 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 tranDate: i.GL_Voucher.VoucherDate,
                 createdBy: i.GL_Voucher.AddLog,
                 createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn,
+                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
                 CompanyId: companyId,
                 invoice_Id: savedInvoice.id
-              })
+              }, { silent: true });
   
               for(let vh of i.GL_Voucher.GL_Voucher_Detail){
                 let Voucher_Head = {
@@ -6328,11 +6328,11 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   narration: vh.NarrationVD,
                   accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
                   createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn,
+                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
                   ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
                 }
-                await Voucher_Heads.create(Voucher_Head);
+                await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
             }
           }
