@@ -48,6 +48,7 @@ routes.get("/getValues", async(req, res) => {
       }
     })
     let tempClient = [];
+    // console.log(resultTwo.length)
     resultTwo.forEach((x)=>{
       if(x.nongl!='1'){
         tempClient.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
@@ -61,6 +62,7 @@ routes.get("/getValues", async(req, res) => {
   };
 
   let makeResultTwo = (result) => {
+    console.log(result.length)
     let finalResult = { transporter:[], forwarder:[], overseasAgent:[], localVendor:[], chaChb:[], sLine:[], airLine:[] };
     result.forEach((x) => {
       if(x.types.includes('Air Line')){
@@ -78,7 +80,7 @@ routes.get("/getValues", async(req, res) => {
       if(x.types.includes('CHA/CHB')){
         finalResult.chaChb.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
       }
-      if(x.types.includes('Local Vendor')){
+      if(x.types.includes('Local Vendor') && x.nongl!='1'){
         finalResult.localVendor.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
       }
       if(x.types.includes('Shipping Line')){
@@ -110,7 +112,7 @@ routes.get("/getValues", async(req, res) => {
       attributes:['id','name', 'types', 'code'],
       order: [['createdAt', 'DESC']]
     })
-    const resultThree = await Vendors.findAll({ 
+    const resultThree = await Clients.findAll({ 
       where: {
         types: {
           [Op.or]:[
@@ -125,7 +127,7 @@ routes.get("/getValues", async(req, res) => {
         },
         active:true
       },
-      attributes:['id','name', 'types', 'code'],
+      attributes:['id','name', 'types', 'code', 'nongl'],
       order: [['createdAt', 'DESC']]
     })
     let tempCommodity = [];
@@ -246,7 +248,7 @@ routes.post("/create", async(req, res) => {
     } else {
       data.airLineId=null
     }
-    console.log("Data Operation:",data.operation)
+    // console.log("Data Operation:",data.operation)
     // const check = await SE_Job.findOne({
     //   order:[['jobId','DESC']], attributes:["jobId"],
     //   where:{operation:data.operation, companyId:data.companyId.toString()}
@@ -262,6 +264,7 @@ routes.post("/create", async(req, res) => {
         }
       }
     });
+    console.log(data)
     const result = await SE_Job.create({
       ...data,
       jobId:check==null?1:parseInt(check.jobId)+1,
@@ -466,11 +469,11 @@ routes.get("/getJobsWithoutBl", async(req, res) => {
       { model:Clients,  attributes:attr },
       { model:Clients, as:'consignee', attributes:attr },
       { model:Clients, as:'shipper', attributes:attr },
-      { model:Vendors, as:'overseas_agent', attributes:attr },
+      { model:Clients, as:'overseas_agent', attributes:attr },
       { model:Commodity, as:'commodity' },
       { model:Vessel, as:'vessel', attributes:['name'] },
-      { model:Vendors, as:'air_line', attributes:['name'] },
-      { model:Vendors, as:'shipping_line', attributes:['name'] },
+      { model:Clients, as:'air_line', attributes:['name'] },
+      { model:Clients, as:'shipping_line', attributes:['name'] },
       { model:Voyage, attributes:['voyage'] },
     ],
   });
@@ -640,11 +643,11 @@ routes.post("/findJobByNo", async(req, res) => {
         { model:Clients,  attributes:attr },
         { model:Clients, as:'consignee', attributes:attr },
         { model:Clients, as:'shipper', attributes:attr },
-        { model:Vendors, as:'overseas_agent', attributes:attr },
+        { model:Clients, as:'overseas_agent', attributes:attr },
         { model:Commodity, as:'commodity' },
         { model:Vessel,  as:'vessel', attributes:['name'] },
-        { model:Vendors, as:'air_line', attributes:['name'] },
-        { model:Vendors, as:'shipping_line', attributes:['name'] },
+        { model:Clients, as:'air_line', attributes:['name'] },
+        { model:Clients, as:'shipping_line', attributes:['name'] },
         { model:Voyage, attributes:['voyage'] },
       ]
     });
@@ -796,9 +799,9 @@ routes.get("/getJobByValues", async (req, res) => {
           ]},
           { model: Clients, attributes:     ["name"] },
           { model: Charge_Head, attributes: ["type", "amount"]},
-          { model: Vendors, attributes:     ["name"], as : "local_vendor"},
-          { model: Vendors, attributes:     ["name"], as : "shipping_line"},
-          { model: Vendors, attributes:     ["name"], as :"air_line"},
+          { model: Clients, attributes:     ["name"], as : "local_vendor"},
+          { model: Clients, attributes:     ["name"], as : "shipping_line"},
+          { model: Clients, attributes:     ["name"], as :"air_line"},
           { model: Vessel , attributes:     ["name"], as :"vessel" },
           { model: Commodity, attributes:   ["name"], as :"commodity" },
           { model: Employees, attributes:   ["name"], as :"sales_representator" },
@@ -893,7 +896,7 @@ routes.get("/getValuesJobList", async (req, res) => {
       attributes: ["id", "name", "types", "code"],
       order: [["createdAt", "DESC"]],
     });
-    const resultThree = await Vendors.findAll({
+    const resultThree = await Clients.findAll({
       where: {
         types: {
           [Op.or]: [
@@ -907,7 +910,7 @@ routes.get("/getValuesJobList", async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    const vendor = await Vendors.findAll({
+    const vendor = await Clients.findAll({
       attributes: ["id", "name", "types", "code"],
       order: [["createdAt", "DESC"]],
     });
@@ -1097,32 +1100,32 @@ routes.post("/UploadSEJobs", async (req, res) => {
           climaxId: job.ClientId
         }
       })
-      const OverseasAgent = await Vendors.findOne({
+      const OverseasAgent = await Clients.findOne({
         where: {
           climaxId: job.OverseasAgentId
         }
       })
-      const LocalAgent = await Vendors.findOne({
+      const LocalAgent = await Clients.findOne({
         where: {
           climaxId: job.LocalAgentId
         }
       })
-      const CustomClearance = await Vendors.findOne({
+      const CustomClearance = await Clients.findOne({
         where: {
           climaxId: job.CustomClearanceId
         }
       })
-      const Transporter = await Vendors.findOne({
+      const Transporter = await Clients.findOne({
         where: {
           climaxId: job.TransporterId
         }
       })
-      const Forwarder = await Vendors.findOne({
+      const Forwarder = await Clients.findOne({
         where: {
           climaxId: job.ForwarderId
         }
       })
-      const ShippingLine = await Vendors.findOne({
+      const ShippingLine = await Clients.findOne({
         where: {
           climaxId: job.ShippingLineId
         }
@@ -1401,7 +1404,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
       if(job.SeaExportJob_ChargesPayb){
         for(let CP of job.SeaExportJob_ChargesPayb){
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Vendors.findOne({where:{climaxId:CP.VendorId}})
+          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           if(!party){
             party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           }
@@ -1575,7 +1578,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -1619,7 +1622,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -1637,7 +1640,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -1820,7 +1823,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -1864,7 +1867,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -1882,7 +1885,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -1952,7 +1955,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
           let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           if(!party){
-            party = await Vendors.findOne({where:{climaxId:CP.Customer.Id}})
+            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           }
           let invoice_id
           let invoiceType
@@ -2127,7 +2130,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -2171,7 +2174,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -2346,7 +2349,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -2390,7 +2393,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -2468,32 +2471,32 @@ routes.post("/UploadSIJobs", async (req, res) => {
           climaxId: job.ClientId
         }
       })
-      const OverseasAgent = await Vendors.findOne({
+      const OverseasAgent = await Clients.findOne({
         where: {
           climaxId: job.OverseasAgentId
         }
       })
-      const LocalAgent = await Vendors.findOne({
+      const LocalAgent = await Clients.findOne({
         where: {
           climaxId: job.LocalAgentId
         }
       })
-      const CustomClearance = await Vendors.findOne({
+      const CustomClearance = await Clients.findOne({
         where: {
           climaxId: job.CustomClearanceId
         }
       })
-      const Transporter = await Vendors.findOne({
+      const Transporter = await Clients.findOne({
         where: {
           climaxId: job.TransporterId
         }
       })
-      const Forwarder = await Vendors.findOne({
+      const Forwarder = await Clients.findOne({
         where: {
           climaxId: job.ForwarderId
         }
       })
-      const ShippingLine = await Vendors.findOne({
+      const ShippingLine = await Clients.findOne({
         where: {
           climaxId: job.ShippingLineId
         }
@@ -2772,7 +2775,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
       if(job.SeaExportJob_ChargesPayb){
         for(let CP of job.SeaExportJob_ChargesPayb){
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Vendors.findOne({where:{climaxId:CP.VendorId}})
+          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           if(!party){
             party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           }
@@ -2945,7 +2948,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -2989,7 +2992,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -3007,7 +3010,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -3190,7 +3193,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -3234,7 +3237,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -3296,7 +3299,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
           let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           if(!party){
-            party = await Vendors.findOne({where:{climaxId:CP.Customer.Id}})
+            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           }
           let invoice_id
           let invoiceType
@@ -3471,7 +3474,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -3515,7 +3518,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -3533,7 +3536,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -3715,7 +3718,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -3759,7 +3762,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -3838,13 +3841,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
       console.log(job.JobNumber)
 
       const Client = await safeFindOne(Clients, job.ClientId);
-      const AirLine = await safeFindOne(Vendors, job.AirLineId);
-      const OverseasAgent = await safeFindOne(Vendors, job.OverseasAgentId);
-      const LocalAgent = await safeFindOne(Vendors, job.LocalAgentId);
-      const CustomClearance = await safeFindOne(Vendors, job.CustomClearanceId);
-      const Transporter = await safeFindOne(Vendors, job.TransporterId);
-      const Forwarder = await safeFindOne(Vendors, job.ForwarderId);
-      const ShippingLine = await safeFindOne(Vendors, job.ShippingLineId);
+      const AirLine = await safeFindOne(Clients, job.AirLineId);
+      const OverseasAgent = await safeFindOne(Clients, job.OverseasAgentId);
+      const LocalAgent = await safeFindOne(Clients, job.LocalAgentId);
+      const CustomClearance = await safeFindOne(Clients, job.CustomClearanceId);
+      const Transporter = await safeFindOne(Clients, job.TransporterId);
+      const Forwarder = await safeFindOne(Clients, job.ForwarderId);
+      const ShippingLine = await safeFindOne(Clients, job.ShippingLineId);
       const Consignee = await safeFindOne(Clients, job.ConsigneeId);
       const Shipper = await safeFindOne(Clients, job.ShipperId);
       const commodity = await safeFindOne(Commodity, job.CommodityId);
@@ -4035,7 +4038,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
       if(job.SeaExportJob_ChargesPayb){
         for(let CP of job.SeaExportJob_ChargesPayb){
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Vendors.findOne({where:{climaxId:CP.VendorId}})
+          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           if(!party){
             party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           }
@@ -4209,7 +4212,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -4253,7 +4256,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -4271,7 +4274,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -4454,7 +4457,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -4498,7 +4501,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -4516,7 +4519,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -4586,7 +4589,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
           let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           if(!party){
-            party = await Vendors.findOne({where:{climaxId:CP.Customer.Id}})
+            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           }
           let invoice_id
           let invoiceType
@@ -4761,7 +4764,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -4805,7 +4808,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -4980,7 +4983,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -5024,7 +5027,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -5098,13 +5101,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
       console.log(job.JobNumber)
 
       const Client = await safeFindOne(Clients, job.ClientId);
-      const AirLine = await safeFindOne(Vendors, job.AirLineId);
-      const OverseasAgent = await safeFindOne(Vendors, job.OverseasAgentId);
-      const LocalAgent = await safeFindOne(Vendors, job.LocalAgentId);
-      const CustomClearance = await safeFindOne(Vendors, job.CustomClearanceId);
-      const Transporter = await safeFindOne(Vendors, job.TransporterId);
-      const Forwarder = await safeFindOne(Vendors, job.ForwarderId);
-      const ShippingLine = await safeFindOne(Vendors, job.ShippingLineId);
+      const AirLine = await safeFindOne(Clients, job.AirLineId);
+      const OverseasAgent = await safeFindOne(Clients, job.OverseasAgentId);
+      const LocalAgent = await safeFindOne(Clients, job.LocalAgentId);
+      const CustomClearance = await safeFindOne(Clients, job.CustomClearanceId);
+      const Transporter = await safeFindOne(Clients, job.TransporterId);
+      const Forwarder = await safeFindOne(Clients, job.ForwarderId);
+      const ShippingLine = await safeFindOne(Clients, job.ShippingLineId);
       const Consignee = await safeFindOne(Clients, job.ConsigneeId);
       const Shipper = await safeFindOne(Clients, job.ShipperId);
       const commodity = await safeFindOne(Commodity, job.CommodityId);
@@ -5295,7 +5298,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
       if(job.SeaExportJob_ChargesPayb){
         for(let CP of job.SeaExportJob_ChargesPayb){
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Vendors.findOne({where:{climaxId:CP.VendorId}})
+          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           if(!party){
             party = await Clients.findOne({where:{climaxId:CP.VendorId}})
           }
@@ -5469,7 +5472,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -5513,7 +5516,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -5531,7 +5534,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -5714,7 +5717,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -5758,7 +5761,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -5776,7 +5779,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 temp?
-                p = await Vendors.findOne({
+                p = await Clients.findOne({
                   where: {
                     id: temp.VendorId
                   }
@@ -5846,7 +5849,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
           const charge = await Charges.findOne({where:{code:CP.ChargesId}})
           let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           if(!party){
-            party = await Vendors.findOne({where:{climaxId:CP.Customer.Id}})
+            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
           }
           let invoice_id
           let invoiceType
@@ -6021,7 +6024,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -6065,7 +6068,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }
@@ -6240,7 +6243,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   }
                 })
                 if(temp){
-                  p = await Vendors.findOne({
+                  p = await Clients.findOne({
                     where: {
                       id: temp.VendorId
                     }
@@ -6284,7 +6287,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                     }
                   })
                   if(temp){
-                    p = await Vendors.findOne({
+                    p = await Clients.findOne({
                       where: {
                         id: temp.VendorId
                       }

@@ -6,7 +6,7 @@ const { Employees } = require("../employeeAssociations")
 //Vendors.belongsTo(Employees, { as: 'account_representator' });
 
 Company.hasMany(Vouchers, {
-    foriegnKey:{
+    foreignKey:{
         type: DataTypes.INTEGER,
         allowNull:false
     }
@@ -22,7 +22,7 @@ Vouchers.hasMany(Voucher_Heads, {
 Voucher_Heads.belongsTo(Vouchers);
 
 Child_Account.hasMany(Voucher_Heads, {
-    foriegnKey:{
+    foreignKey:{
         type: DataTypes.INTEGER,
         allowNull:false
     }
@@ -30,7 +30,7 @@ Child_Account.hasMany(Voucher_Heads, {
 Voucher_Heads.belongsTo(Child_Account);
 
 Employees.hasMany(Office_Vouchers, {
-    foriegnKey:{
+    foreignKey:{
         type: DataTypes.INTEGER,
         allowNull:false
     }
@@ -38,8 +38,8 @@ Employees.hasMany(Office_Vouchers, {
 Office_Vouchers.belongsTo(Employees);
 
 Vouchers.hasMany(Office_Vouchers, {
-    foriegnKey:{
-        type: DataTypes.IN,
+    foreignKey:{
+        type: DataTypes.INTEGER,
         allowNull:false
     }
 });

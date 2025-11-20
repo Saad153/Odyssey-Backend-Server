@@ -1,6 +1,6 @@
 const { Loading_Program, Item_Details, Dimensions, Delivery_Order, Manifest, Manifest_Jobs, SE_Job, SE_Equipments, Commodity, Bl, Container_Info, Vessel, Job_notes, Stamps } = require("../../../models");
 const { Employees } = require("../employeeAssociations");
-const { Vendors   } = require("../vendorAssociations");
+// const { Clients   } = require("../vendorAssociations");
 const { Voyage    } = require("../vesselAssociations");
 const { Clients   } = require("../clientAssociation");
 const { DataTypes } = require('sequelize');
@@ -15,8 +15,8 @@ SE_Equipments.belongsTo(SE_Job);
 
 Clients.hasMany(SE_Job, {
     foriegnKey:{
-        type: DataTypes.UUID,
-        allowNull:false
+        type: DataTypes.INTEGER,
+        allowNull:true
     }
 });
 SE_Job.belongsTo(Clients);
@@ -114,18 +114,18 @@ Manifest_Jobs.belongsTo(SE_Job);
 SE_Job.belongsTo(Employees, {as:'sales_representator'});
 Bl.belongsTo(Clients,       {as:'notifyPartyOne'     });
 Bl.belongsTo(Clients,       {as:'notifyPartyTwo'     });
-SE_Job.belongsTo(Vendors,   {as:'overseas_agent'     });
-SE_Job.belongsTo(Vendors,   {as:'shipping_line'      });
-//SE_Job.belongsTo(Vendors, { as: 'vendor_shipping_line' });
+SE_Job.belongsTo(Clients,   {as:'overseas_agent'     });
+SE_Job.belongsTo(Clients,   {as:'shipping_line'      });
+//SE_Job.belongsTo(Clients, { as: 'vendor_shipping_line' });
 //SE_Job.belongsTo(Clients, { as: 'client_shipping_line' });
-SE_Job.belongsTo(Vendors,   {as:'local_vendor'       });
-SE_Job.belongsTo(Vendors,   {as:'custom_agent'       });
-SE_Job.belongsTo(Vendors,   {as:'transporter'        });
+SE_Job.belongsTo(Clients,   {as:'local_vendor'       });
+SE_Job.belongsTo(Clients,   {as:'custom_agent'       });
+SE_Job.belongsTo(Clients,   {as:'transporter'        });
 SE_Job.belongsTo(Employees, {as:'created_by'         });
 SE_Job.belongsTo(Commodity, {as:'commodity'          });
 SE_Job.belongsTo(Clients,   {as:'consignee'          });
-SE_Job.belongsTo(Vendors,   {as:'forwarder'          });
-SE_Job.belongsTo(Vendors,   {as:'air_line'           });
+SE_Job.belongsTo(Clients,   {as:'forwarder'          });
+SE_Job.belongsTo(Clients,   {as:'air_line'           });
 SE_Job.belongsTo(Clients,   {as:'shipper'            });
 SE_Job.belongsTo(Vessel,    {as:'vessel'             });
 

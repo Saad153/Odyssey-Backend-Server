@@ -265,7 +265,7 @@ routes.post("/editClient", async(req, res) => {
 routes.get("/getClients", async(req, res) => {
     try {
         const result = await Clients.findAll({
-            // where:{[Op.and]:[{nongl:{[Op.eq]:null}}]},
+            // where:{[Op.or]:[{nongl:'0'}, {[Op.eq]:{nongl:null}}]},
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
             order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] 
         });
@@ -529,9 +529,12 @@ routes.post("/bulkCreate", async (req, res) => {
     let i = 1
     const accounts = await Child_Account.findAll({
         include: {
-            model: Parent_Account
+            model: Child_Account,
+            as: 'parent'
         }
     });
+
+    console.log("Accounts Fetched", accounts[10].dataValues.id)
 
     for (let party of parties) {
         let ops = '';
@@ -570,114 +573,158 @@ routes.post("/bulkCreate", async (req, res) => {
         if (party.IsBuyer) type += 'Buyer, ';
         if (party.IsSlotOperator) type += 'Slot Operator, ';
 
-        let COA1 = {}
-        let COA3 = {}
+        let COA1 = null
+        // console.log(accounts[721].dataValues.id, party?.AccountId)
+        // console.log(typeof(accounts[721].dataValues.id), typeof(party?.AccountId))
         accounts.forEach((account) => {
-            if (parseInt(account.dataValues.code) == party?.Account?.Id && account.dataValues.Parent_Account.CompanyId == 1) {
-                COA1 = account.dataValues;
-            }
-            if (parseInt(account.dataValues.code) == party?.Account?.Id && account.dataValues.Parent_Account.CompanyId == 3) {
-                COA3 = account.dataValues;
+            if (account.dataValues.id == party?.AccountId) {
+                COA1 = account.dataValues.id;
             }
         })
+        const SNSClient = await Clients.create({
+            climaxId: party.Id,
+            code: i || null,
+            name: party.PartyName,
+            city: party.City?.UNLocName || null,
+            telephone1: party.Telephone1 || null,
+            telephone2: party.Telephone2 || null,
+            address1: party.Address1 || null,
+            address2: party.Address2 || null,
+            website: party.WebSite || null,
+            accountsMail: party.AccountsEmail || null,
+            infoMail: party.Email || null,
+            strn: party.STRN || null,
+            ntn: party.NTNName || null,
+            registerDate: party.DateOfRegistration || moment().format("YYYY-MM-DD"),
+            operations: ops || null,
+            types: type || null,
+            bankAuthorizeDate: party.AuthorizationDate || moment().format("YYYY-MM-DD"),
+            bank: party.BankName || null,
+            branchName: party.BranchName || null,
+            branchCode: party.BranchCode || null,
+            accountNo: party.AccountNo || null,
+            iban: party.IBAN || null,
+            swiftCode: party.SwiftCode || null,
+            routingNo: party.RoutingNo || null,
+            ifscCode: party.IFCSCode || null,
+            micrCode: party.MICRCode || null,
+            currency: party.CurrencyId || "PKR",
+            createdBy: party.AddLog || "System",
+            active: true,
+            nongl: COA1 != null ? '0' : '1'
+        });
+        if(COA1 != null){
+            await Client_Associations.create({
+                ClientId: SNSClient.id,
+                // CompanyId: 1,
+                // ParentAccountId: COA1.ChildAccountId,
+                ChildAccountId: COA1
+            })
+            // await Client_Associations.create({
+            //     ClientId: SNSClient.id,
+            //     // CompanyId: 3,
+            //     // ParentAccountId: COA1.ChildAccountId,
+            //     ChildAccountId: COA1.id
+            // })
+        }
         // if(party.Account && (party.ParentAccount?.AccountName.includes("RECEIVABLE") || party.ParentAccount?.AccountName.includes("ASSETS") || party.Account.ParentAccountId == 4865|| party.Account.ParentAccountId == 4903) && COA1 && COA3){
-        if(type.includes("Shipper") || type.includes("Consignee") || type.includes("Notify")){
+        // if(type.includes("Shipper") || type.includes("Consignee") || type.includes("Notify")){
 
-            const SNSClient = await Clients.create({
-                climaxId: party.Id,
-                code: i || null,
-                name: party.PartyName,
-                city: party.City?.UNLocName || null,
-                telephone1: party.Telephone1 || null,
-                telephone2: party.Telephone2 || null,
-                address1: party.Address1 || null,
-                address2: party.Address2 || null,
-                website: party.WebSite || null,
-                accountsMail: party.AccountsEmail || null,
-                infoMail: party.Email || null,
-                strn: party.STRN || null,
-                ntn: party.NTNName || null,
-                registerDate: party.DateOfRegistration || moment().format("YYYY-MM-DD"),
-                operations: ops || null,
-                types: type || null,
-                bankAuthorizeDate: party.AuthorizationDate || moment().format("YYYY-MM-DD"),
-                bank: party.BankName || null,
-                branchName: party.BranchName || null,
-                branchCode: party.BranchCode || null,
-                accountNo: party.AccountNo || null,
-                iban: party.IBAN || null,
-                swiftCode: party.SwiftCode || null,
-                routingNo: party.RoutingNo || null,
-                ifscCode: party.IFCSCode || null,
-                micrCode: party.MICRCode || null,
-                currency: party.CurrencyId || "PKR",
-                createdBy: party.AddLog || "System",
-                active: true,
-                nongl: party.Account ? '0' : '1'
-            });
-            if(party.Account){
-                await Client_Associations.create({
-                    ClientId: SNSClient.id,
-                    CompanyId: 1,
-                    ParentAccountId: COA1.ParentAccountId,
-                    ChildAccountId: COA1.id
-                })
-                await Client_Associations.create({
-                    ClientId: SNSClient.id,
-                    CompanyId: 3,
-                    ParentAccountId: COA3.ParentAccountId,
-                    ChildAccountId: COA3.id
-                })
-            }
-        }
-        if(type.includes("Slot Operator") || type.includes("Buyer") || type.includes("Terminal") || type.includes("Depot") || type.includes("Principal") || type.includes("Stevedore") || type.includes("Cartage") || type.includes("Drayman") || type.includes("Trucking") || type.includes("Air Line") || type.includes("Buying House") || type.includes("Warehouse") || type.includes("Delivery Agent") || type.includes("Shipping Line") || type.includes("CHA/CHB") || type.includes("Transporter") || type.includes("Indentor") || type.includes("Commission Agent") || type.includes("Overseas Agent") || type.includes("Potential Customer") || type.includes("Non operational Party") || type.includes("Forwarder/Coloader") || type.includes("Local Vendor")){
-            const SNSVendor = await Vendors.create({
-                climaxId: party.Id,
-                code: i || null,
-                name: party.PartyName,
-                city: party.City?.UNLocName || null,
-                telephone1: party.Telephone1 || null,
-                telephone2: party.Telephone2 || null,
-                address1: party.Address1 || null,
-                address2: party.Address2 || null,
-                website: party.WebSite || null,
-                accountsMail: party.AccountsEmail || null,
-                infoMail: party.Email || null,
-                strn: party.STRN || null,
-                ntn: party.NTNName || null,
-                registerDate: party.DateOfRegistration || moment().format("YYYY-MM-DD"),
-                operations: ops || null,
-                types: type || null,
-                bankAuthorizeDate: party.AuthorizationDate || moment().format("YYYY-MM-DD"),
-                bank: party.BankName || null,
-                branchName: party.BranchName || null,
-                branchCode: party.BranchCode || null,
-                accountNo: party.AccountNo || null,
-                iban: party.IBAN || null,
-                swiftCode: party.SwiftCode || null,
-                routingNo: party.RoutingNo || null,
-                ifscCode: party.IFCSCode || null,
-                micrCode: party.MICRCode || null,
-                currency: party.CurrencyId || "PKR",
-                createdBy: party.AddLog || "System",
-                active: true,
-                nongl: party.Account ? '0' : '1'
-            });
-            if(party.Account){
-                await Vendor_Associations.create({
-                    VendorId: SNSVendor.id,
-                    CompanyId: 1,
-                    ParentAccountId: COA1.ParentAccountId,
-                    ChildAccountId: COA1.id
-                })
-                await Vendor_Associations.create({
-                    VendorId: SNSVendor.id,
-                    CompanyId: 3,
-                    ParentAccountId: COA3.ParentAccountId,
-                    ChildAccountId: COA3.id
-                })
-            }
-        }
+        //     const SNSClient = await Clients.create({
+        //         climaxId: party.Id,
+        //         code: i || null,
+        //         name: party.PartyName,
+        //         city: party.City?.UNLocName || null,
+        //         telephone1: party.Telephone1 || null,
+        //         telephone2: party.Telephone2 || null,
+        //         address1: party.Address1 || null,
+        //         address2: party.Address2 || null,
+        //         website: party.WebSite || null,
+        //         accountsMail: party.AccountsEmail || null,
+        //         infoMail: party.Email || null,
+        //         strn: party.STRN || null,
+        //         ntn: party.NTNName || null,
+        //         registerDate: party.DateOfRegistration || moment().format("YYYY-MM-DD"),
+        //         operations: ops || null,
+        //         types: type || null,
+        //         bankAuthorizeDate: party.AuthorizationDate || moment().format("YYYY-MM-DD"),
+        //         bank: party.BankName || null,
+        //         branchName: party.BranchName || null,
+        //         branchCode: party.BranchCode || null,
+        //         accountNo: party.AccountNo || null,
+        //         iban: party.IBAN || null,
+        //         swiftCode: party.SwiftCode || null,
+        //         routingNo: party.RoutingNo || null,
+        //         ifscCode: party.IFCSCode || null,
+        //         micrCode: party.MICRCode || null,
+        //         currency: party.CurrencyId || "PKR",
+        //         createdBy: party.AddLog || "System",
+        //         active: true,
+        //         nongl: party.Account ? '0' : '1'
+        //     });
+        //     if(party.Account){
+        //         await Client_Associations.create({
+        //             ClientId: SNSClient.id,
+        //             CompanyId: 1,
+        //             ParentAccountId: COA1.ParentAccountId,
+        //             ChildAccountId: COA1.id
+        //         })
+        //         await Client_Associations.create({
+        //             ClientId: SNSClient.id,
+        //             CompanyId: 3,
+        //             ParentAccountId: COA3.ParentAccountId,
+        //             ChildAccountId: COA3.id
+        //         })
+        //     }
+        // }
+        // if(type.includes("Slot Operator") || type.includes("Buyer") || type.includes("Terminal") || type.includes("Depot") || type.includes("Principal") || type.includes("Stevedore") || type.includes("Cartage") || type.includes("Drayman") || type.includes("Trucking") || type.includes("Air Line") || type.includes("Buying House") || type.includes("Warehouse") || type.includes("Delivery Agent") || type.includes("Shipping Line") || type.includes("CHA/CHB") || type.includes("Transporter") || type.includes("Indentor") || type.includes("Commission Agent") || type.includes("Overseas Agent") || type.includes("Potential Customer") || type.includes("Non operational Party") || type.includes("Forwarder/Coloader") || type.includes("Local Vendor")){
+        //     const SNSVendor = await Vendors.create({
+        //         climaxId: party.Id,
+        //         code: i || null,
+        //         name: party.PartyName,
+        //         city: party.City?.UNLocName || null,
+        //         telephone1: party.Telephone1 || null,
+        //         telephone2: party.Telephone2 || null,
+        //         address1: party.Address1 || null,
+        //         address2: party.Address2 || null,
+        //         website: party.WebSite || null,
+        //         accountsMail: party.AccountsEmail || null,
+        //         infoMail: party.Email || null,
+        //         strn: party.STRN || null,
+        //         ntn: party.NTNName || null,
+        //         registerDate: party.DateOfRegistration || moment().format("YYYY-MM-DD"),
+        //         operations: ops || null,
+        //         types: type || null,
+        //         bankAuthorizeDate: party.AuthorizationDate || moment().format("YYYY-MM-DD"),
+        //         bank: party.BankName || null,
+        //         branchName: party.BranchName || null,
+        //         branchCode: party.BranchCode || null,
+        //         accountNo: party.AccountNo || null,
+        //         iban: party.IBAN || null,
+        //         swiftCode: party.SwiftCode || null,
+        //         routingNo: party.RoutingNo || null,
+        //         ifscCode: party.IFCSCode || null,
+        //         micrCode: party.MICRCode || null,
+        //         currency: party.CurrencyId || "PKR",
+        //         createdBy: party.AddLog || "System",
+        //         active: true,
+        //         nongl: party.Account ? '0' : '1'
+        //     });
+        //     if(party.Account){
+        //         await Vendor_Associations.create({
+        //             VendorId: SNSVendor.id,
+        //             CompanyId: 1,
+        //             ParentAccountId: COA1.ParentAccountId,
+        //             ChildAccountId: COA1.id
+        //         })
+        //         await Vendor_Associations.create({
+        //             VendorId: SNSVendor.id,
+        //             CompanyId: 3,
+        //             ParentAccountId: COA3.ParentAccountId,
+        //             ChildAccountId: COA3.id
+        //         })
+        //     }
+        // }
         // if(!party.Account) {
         //     const SNSClient = await Clients.create({
         //         climaxId: party.Id,

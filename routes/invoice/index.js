@@ -192,6 +192,7 @@ routes.get("/getInvoiceByNo", async(req, res) => {
         'name', 'address1', 'address1', 'person1', 'mobile1',
         'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
       ];
+      console.log("Invoice Id: ", req.headers.invoiceno)
       const resultOne = await Invoice.findOne({
         where:{invoice_No:req.headers.invoiceno.toUpperCase()},
         include:[
@@ -214,10 +215,10 @@ routes.get("/getInvoiceByNo", async(req, res) => {
               { model:Clients, attributes:attr },
               { model:Clients, as:'consignee', attributes:attr },
               { model:Clients, as:'shipper', attributes:attr },
-              { model:Vendors, as:'shipping_line', attributes:attr },
+              { model:Clients, as:'shipping_line', attributes:attr },
               { model:Employees, as:'sales_representator', attributes:['name'] },
               { model:Vessel, as:'vessel', attributes:['carrier', 'name'] },
-              { model:Vendors, as:'air_line', attributes:['name'] },
+              { model:Clients, as:'air_line', attributes:['name'] },
               { model:Commodity, as:'commodity', attributes:['name'] },
               //{ model:Voyage },
             ]
@@ -227,6 +228,7 @@ routes.get("/getInvoiceByNo", async(req, res) => {
           [{ model: Charge_Head }, 'id', 'ASC'],
         ]
       })
+      console.log(resultOne)
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
@@ -240,6 +242,7 @@ routes.get("/getInvoiceById", async(req, res) => {
         'name', 'address1', 'address1', 'person1', 'mobile1',
         'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
       ];
+      console.log("Invoice Id: ", req.headers.invoiceid)
       const resultOne = await Invoice.findOne({
         where:{id:{ [Op.eq]: req.headers.invoiceid }},
         include:[
@@ -260,10 +263,10 @@ routes.get("/getInvoiceById", async(req, res) => {
               { model:Clients, attributes:attr },
               { model:Clients, as:'consignee', attributes:attr },
               { model:Clients, as:'shipper', attributes:attr },
-              { model:Vendors, as:'shipping_line', attributes:attr },
+              { model:Clients, as:'shipping_line', attributes:attr },
               { model:Employees, as:'sales_representator', attributes:['name'] },
               { model:Vessel, as:'vessel', attributes:['carrier', 'name'] },
-              { model:Vendors, as:'air_line', attributes:['name'] },
+              { model:Clients, as:'air_line', attributes:['name'] },
               //{ model:Voyage },
             ]
           },
@@ -272,6 +275,7 @@ routes.get("/getInvoiceById", async(req, res) => {
           [{ model: Charge_Head }, 'id', 'ASC'],
         ]
       })
+      console.log(resultOne)
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
@@ -300,13 +304,14 @@ routes.get("/testResetSomeInvoices", async(req, res) => {
   }
 });
 
-routes.get("/getAllInoivcesByPartyId", async(req, res) => {
+routes.get("/getAllInvoicesByPartyId", async(req, res) => {
   try {
-    console.log("ID>>",req.headers.id)
-    // account = req.headers.type == "client" ? Client_Associations : Vendor_Associations;
+    console.log(req.headers)
+    console.log(req.body)
+    // account = Client_Associations;
     // acc = await account.findOne({
     //   where: {
-    //     [req.headers.type === "client" ? 'ClientId' : 'VendorId']: req.headers.id
+    //     ClientId: req.headers.id
     //   }
     // });
     // console.log(acc.dataValues.ChildAccountId)
@@ -317,25 +322,17 @@ routes.get("/getAllInoivcesByPartyId", async(req, res) => {
       };
 
     }
-    // let account
-    // if(req.headers.type == 'client'){
-    //   account = await Client_Associations.findOne({
-    //     where:{
-    //       ChildAccountId: req.headers.id
-    //     }
-    //   })
-    // }else{
-    //   account = await Vendor_Associations.findOne({
-    //     where:{
-    //       ChildAccountId: req.headers.id
-    //     }
-    //   })
-    // }
-    // console.log(account)
+    let account
+    account = await Client_Associations.findOne({
+      where:{
+        ClientId: parseInt(req.headers.id)
+      }
+    })
+    console.log(account)
     const result = await Invoice.findAll({
       where:{
         approved:"1",
-        party_Id:req.headers.id,
+        party_Id: account.ChildAccountId.toString(),
         currency: req.headers.invoicecurrency,
         companyId: req.headers.companyid,
         ...obj
@@ -364,7 +361,7 @@ routes.get("/getAllInoivcesByPartyId", async(req, res) => {
   }
 });
 
-routes.get("/getAllOldInoivcesByPartyId", async(req, res) => {
+routes.get("/getAllOldInvoicesByPartyId", async(req, res) => {
   try {
     const result = await Invoice.findAll({
       where:{
@@ -662,7 +659,7 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
     let inVoiceDeleteList = []
     let account = await Client_Associations.findOne({
       where:{
-        CompanyId: companyId,
+        // CompanyId: companyId,
         ClientId: x.partyId
       }
     })
@@ -1117,19 +1114,19 @@ routes.post("/approve", async(req, res) => {
     await Charge_Head.update({approved:1, status:1}, {where:{InvoiceId:req.body.id}})
     const job = await SE_Job.findOne({where:{id:invoice.dataValues.SEJobId}})
     let expenseAccount
-    job.dataValues.subType == "FCL"?expenseAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]}):
-    job.dataValues.subType == "LCL"?expenseAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]}):
-    expenseAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]})
+    job.dataValues.subType == "FCL"?expenseAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT EXPENSE"}, include:[{model:Child_Account, as: 'parent'}]}):
+    job.dataValues.subType == "LCL"?expenseAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT EXP"}, include:[{model:Child_Account, as: 'parent'}]}):
+    expenseAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT EXPENSE"}, include:[{model:Child_Account, as: 'parent',}]})
     let incomeAccount
-    job.dataValues.subType == "FCL"?incomeAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]}):
-    job.dataValues.subType == "LCL"?incomeAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]}):
-    incomeAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoice.dataValues.companyId}}]})
+    job.dataValues.subType == "FCL"?incomeAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT INCOME"}, include:[{model:Child_Account, as: 'parent'}]}):
+    job.dataValues.subType == "LCL"?incomeAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT INCOME"}, include:[{model:Child_Account, as: 'parent'}]}):
+    incomeAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT INCOME"}, include:[{model:Child_Account, as: 'parent',}]})
     let account
-    if(invoice.dataValues.partyType == "vendor"||invoice.dataValues.partyType == "agent"){
-      account = await Vendor_Associations.findOne({where:{VendorId:invoice.dataValues.party_Id}})
-    }else{
-      account = await Client_Associations.findOne({where:{ClientId:invoice.dataValues.party_Id}})
-    }
+    // if(invoice.dataValues.partyType == "vendor"||invoice.dataValues.partyType == "agent"){
+    //   account = await Vendor_Associations.findOne({where:{VendorId:invoice.dataValues.party_Id}})
+    // }else{
+    // }
+    account = await Client_Associations.findOne({where:{ClientId:invoice.dataValues.party_Id}})
 
     vouchers = {
       type:invoice.dataValues.payType=="Recievable"?"Job Recievable":"Job Payble",

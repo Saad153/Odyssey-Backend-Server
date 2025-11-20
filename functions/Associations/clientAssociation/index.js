@@ -15,19 +15,19 @@ Clients.hasMany(Client_Associations,{
 })
 Client_Associations.belongsTo(Clients)
 
-Company.hasMany(Client_Associations,{
-    foriegnKey:{
-        allowNull:false
-    }
-})
-Client_Associations.belongsTo(Company);
+// Company.hasMany(Client_Associations,{
+//     foriegnKey:{
+//         allowNull:false
+//     }
+// })
+// Client_Associations.belongsTo(Company);
 
-Parent_Account.hasMany(Client_Associations,{
-    foriegnKey:{
-        allowNull:false
-    }
-})
-Client_Associations.belongsTo(Parent_Account);
+// Parent_Account.hasMany(Client_Associations,{
+//     foriegnKey:{
+//         allowNull:false
+//     }
+// })
+// Client_Associations.belongsTo(Parent_Account);
 
 Child_Account.hasMany(Client_Associations,{
     foriegnKey:{

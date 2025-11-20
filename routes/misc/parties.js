@@ -19,12 +19,15 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
     if(req.headers.type == 'client'){
       console.log("Client Ran")
       result = await Clients.findAll({
+        where: {
+          nongl: '0'
+        },
         attributes:['id', 'name', 'code'],
         include: {
           model: Client_Associations,
-          where: {
-            CompanyId: req.headers.companyid
-          },
+          // where: {
+          //   CompanyId: req.headers.companyid
+          // },
           include:{
             model: Child_Account
           }
@@ -32,13 +35,16 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
       })
     }else if(req.headers.type == 'vendor'){
       console.log("Vendor Ran")
-      result = await Vendors.findAll({
+      result = await Clients.findAll({
+        where: {
+          nongl: '0'
+        },
         attributes:['id', 'name', 'code'],
         include: {
-          model: Vendor_Associations,
-          where: {
-            CompanyId: req.headers.companyid
-          },
+          model: Client_Associations,
+          // where: {
+          //   CompanyId: req.headers.companyid
+          // },
           include:{
             model: Child_Account
           }
@@ -49,13 +55,16 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
       })
     }else if(req.headers.type == 'agent'){
       console.log("Agent Ran")
-      result = await Vendors.findAll({
+      result = await Clients.findAll({
+        where: {
+          nongl: '0'
+        },
         attributes:['id', 'name', 'code'],
         include: {
-          model: Vendor_Associations,
-          where: {
-            CompanyId: req.headers.companyid
-          },
+          model: Client_Associations,
+          // where: {
+          //   CompanyId: req.headers.companyid
+          // },
           include:{
             model: Child_Account
           }

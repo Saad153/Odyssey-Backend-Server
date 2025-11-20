@@ -748,15 +748,9 @@ routes.post("/makeTransaction", async(req, res) => {
       })
     }
     let account
-    if(req.body.partyType=='client'){
-      account = await Client_Associations.findOne({
-        where: { ClientId: req.body.partyId, CompanyId: req.body.companyId }
-      })
-    }else{
-      account = await Vendor_Associations.findOne({
-        where: { VendorId: req.body.partyId, CompanyId: req.body.companyId }
-      })
-    }
+    account = await Client_Associations.findOne({
+      where: { ClientId: req.body.partyId }
+    })
     
     for(let x of req.body.transactions){
       let amount = 0.0
@@ -774,7 +768,7 @@ routes.post("/makeTransaction", async(req, res) => {
               type: x.type,
               accountType: x.accountType,
               VoucherId: vID,
-              ChildAccountId: req.body.partyId,
+              ChildAccountId: account.ChildAccountId,
               narration: narration,
               createdAt: req.body.tranDate
             }, {
@@ -790,7 +784,7 @@ routes.post("/makeTransaction", async(req, res) => {
                 type: x.type,
                 accountType: x.accountType,
                 VoucherId: vID,
-                ChildAccountId: req.body.partyId,
+                ChildAccountId: account.ChildAccountId,
                 narration: req.body.narration==""?narration:req.body.narration,
                 createdAt: req.body.tranDate
               },
