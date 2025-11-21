@@ -12,6 +12,7 @@ module.exports = (sequelize, DataTypes) => {
         pcs: { type:DataTypes.STRING },
         vol: { type:DataTypes.STRING },
         volWeight: { type:DataTypes.STRING },
+        por: { type:DataTypes.STRING },
         pol: { type:DataTypes.STRING },
         pod: { type:DataTypes.STRING },
         fd: { type:DataTypes.STRING },

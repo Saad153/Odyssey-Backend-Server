@@ -630,7 +630,7 @@ routes.post("/findJobByNo", async(req, res) => {
     const result = await SE_Job.findAll({
       where:{jobNo:req.body.no},
       attributes:[
-        'jobNo', 'pol',
+        'jobNo', 'pol', 'por',
         'flightNo','id', 
         'pod', 'fd', 'jobDate',
         'shipDate', 'cutOffDate',
