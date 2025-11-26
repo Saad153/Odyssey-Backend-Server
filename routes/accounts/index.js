@@ -793,41 +793,89 @@ routes.get("/childForJobApproval", async(req, res) => {
   }
 });
 
+function buildChildInclude(depth, companyId) {
+  // Base case: last layer → attach Voucher_Heads + Vouchers
+  if (depth === 1) {
+    return {
+      model: Child_Account,
+      as: "children",
+      attributes: ["title"],
+      include: [
+        {
+          model: Voucher_Heads,
+          attributes: ["amount", "type"],
+          include: [
+            {
+              model: Vouchers,
+              attributes: ["id"],
+              where: { CompanyId: companyId }
+            }
+          ]
+        }
+      ]
+    };
+  }
+
+  // Recursive case: build children → then deeper children
+  return {
+    model: Child_Account,
+    as: "children",
+    attributes: ["title"],
+    include: [
+      buildChildInclude(depth - 1, companyId)
+    ]
+  };
+}
+
+
 routes.get("/balanceSheet", async(req, res) => {
   try {
-    const resultOne = await Accounts.findAll({
-      attributes:["title"],
-      where:{
-        id:3//[ 5,4,3 ]
-      },
-      include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid },
-        attributes:["title"],
-        include:[{
-          model:Child_Account,
-          attributes:["title"],
-          include:[{
-            model:Voucher_Heads,
-            attributes:["amount", "type"],
-            include:[{
-              model:Vouchers,
-              attributes:["id"],
-              where:{}
-            }],
-          }]
-        }]
-      }]
+    // const resultOne = await Child_Account.findAll({
+    //   attributes:["title"],
+    //   where:{
+    //     title:'ASSETS'//[ 5,4,3 ]
+    //   },
+    //   include:[{
+    //     model:Child_Account,
+    //     as: 'children',
+    //     // where:{ CompanyId:req.headers.companyid },
+    //     attributes:["title"],
+    //     include:[{
+    //       model:Child_Account,
+    //       as: 'children',
+    //       attributes:["title"],
+    //       include:[{
+    //         model:Voucher_Heads,
+    //         attributes:["amount", "type"],
+    //         include:[{
+    //           model:Vouchers,
+    //           attributes:["id"],
+    //           where:{CompanyId:req.headers.companyid}
+    //         }],
+    //       }]
+    //     }]
+    //   }]
+    // });
+    const layers = 4; // make this dynamic later if you want
+
+    const resultOne = await Child_Account.findAll({
+      attributes: ["title"],
+      where: { title: "ASSETS" },
+      include: [
+        buildChildInclude(layers, req.headers.companyid)
+      ]
     });
-    const resultTwo = await Accounts.findAll({
+    const resultTwo = await Child_Account.findAll({
       attributes:["title"],
-      where:{id:4},
+      where:{title:'LAIBILITY'},
       include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid },
+        model:Child_Account,
+        as: 'children',
+        // where:{ CompanyId:req.headers.companyid },
         attributes:["title"],
         include:[{
           model:Child_Account,
+          as: 'children',
           attributes:["title"],
           include:[{
             model:Voucher_Heads,
@@ -835,21 +883,23 @@ routes.get("/balanceSheet", async(req, res) => {
             include:[{
               model:Vouchers,
               attributes:["id"],
-              where:{}
+              where:{CompanyId:req.headers.companyid}
             }]
           }]
         }]
       }]
     });
-    const capital = await Accounts.findAll({
+    const capital = await Child_Account.findAll({
       attributes:["title"],
-      where:{id:5},
+      where:{title:'CAPITAL'},
       include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid, title:"Capitals" },
+        model:Child_Account,
+        as: 'children',
+        where:{ title:"Capitals" },
         attributes:["title"],
         include:[{
           model:Child_Account,
+          as: 'children',
           attributes:["title"],
           include:[{
             model:Voucher_Heads,
@@ -857,21 +907,23 @@ routes.get("/balanceSheet", async(req, res) => {
             include:[{
               model:Vouchers,
               attributes:["id"],
-              where:{}
+              where:{CompanyId:req.headers.companyid}
             }]
           }]
         }]
       }]
     });
-    const drawings = await Accounts.findAll({
+    const drawings = await Child_Account.findAll({
       attributes:["title"],
-      where:{id:5},
+      where:{title:'EXPENSE'},
       include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid, title:"Drawings" },
+        model:Child_Account,
+        as: 'children',
+        where:{ title:"Drawings" },
         attributes:["title"],
         include:[{
           model:Child_Account,
+          as: 'children',
           attributes:["title"],
           include:[{
             model:Voucher_Heads,
@@ -879,50 +931,54 @@ routes.get("/balanceSheet", async(req, res) => {
             include:[{
               model:Vouchers,
               attributes:["id"],
-              where:{}
+              where:{CompanyId:req.headers.companyid}
             }]
           }]
         }]
       }]
     });
-    const selling = await Accounts.findAll({
+    const selling = await Child_Account.findAll({
       attributes:[ "title" ],
-      where:{id:[3]},
+      where:{title:"REVENUE"},
       include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid, title:["Cash", "Bank"] },
+        model:Child_Account,
+        as: 'children',
+        where:{ title:["Cash", "Bank"] },
         attributes:[ "title" ],
         include:[{
           model:Child_Account,
+          as: 'children',
           attributes:[ "title" ],
           include:[{
             model:Voucher_Heads,
             attributes:[ "amount", "type" ],
             include:[{
               model:Vouchers,
-              where:{type:["Job Reciept"]},
+              where:{type:["Job Reciept"], CompanyId:req.headers.companyid},
               attributes:["id", "voucher_Id", "type"]
             }]
           }]
         }]
       }]
     });
-    const costing = await Accounts.findAll({
+    const costing = await Child_Account.findAll({
       attributes:[ "title" ],
       where:{id:[3]},
       include:[{
-        model:Parent_Account,
-        where:{ CompanyId:req.headers.companyid, title:["Cash", "Bank"] },
+        model:Child_Account,
+        as: 'children',
+        where:{ title:["Cash", "Bank"] },
         attributes:["title"],
         include:[{
           model:Child_Account,
+          as: 'children',
           attributes:["title"],
           include:[{
             model:Voucher_Heads,
             attributes:["amount", "type"],
             include:[{
               model:Vouchers,
-              where:{type:["Job Payment", "Expenses Payment"]},
+              where:{type:["Job Payment", "Expenses Payment"], CompanyId:req.headers.companyid},
               attributes:[ "id", "voucher_Id", "type" ],
             }]
           }]
@@ -941,6 +997,7 @@ routes.get("/balanceSheet", async(req, res) => {
     });
   }
   catch (error) {
+    console.error(error)
     res.json({ status:'error', result:error });
   }
 });

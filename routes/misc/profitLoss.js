@@ -60,9 +60,9 @@ routes.get(`/${url}/job`, async(req, res) => {
         { model:Clients, attributes:['name'] },
         { model:Clients, as:'shipper', attributes:['name'] },
         { model:Clients, as:'consignee', attributes:['name'] },
-        { model:Vendors, as:'local_vendor', attributes:['name'] },
-        { model:Vendors, as:'overseas_agent', attributes:['name'] },
-        { model:Vendors, as:'shipping_line', attributes:['name'] },
+        { model:Clients, as:'local_vendor', attributes:['name'] },
+        { model:Clients, as:'overseas_agent', attributes:['name'] },
+        { model:Clients, as:'shipping_line', attributes:['name'] },
         
         { model:SE_Equipments,  attributes:['teu'] },
         { model:Commodity, as:'commodity',  attributes:['name'] },

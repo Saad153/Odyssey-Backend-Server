@@ -228,7 +228,7 @@ routes.get("/getInvoiceByNo", async(req, res) => {
           [{ model: Charge_Head }, 'id', 'ASC'],
         ]
       })
-      console.log(resultOne)
+      // console.log(resultOne)
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
@@ -453,6 +453,7 @@ routes.get("/deleteInvoice", async(req, res) => {
     await Invoice.destroy({where:{id:req.headers.id}})
     res.json({status:'success'});
   }catch(error){
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -1025,7 +1026,7 @@ routes.get("/getInvoices", async(req, res) =>{
 
 routes.post("/unApprove", async(req, res)=>{
   try{
-    console.log(typeof(req.body.id))
+    console.log(req.body.id)
     const inv = await Invoice.update(
       { approved: 0 },
       { where: { id: req.body.id } } // Replace someInvoiceId with the actual ID or condition
@@ -1033,7 +1034,7 @@ routes.post("/unApprove", async(req, res)=>{
     
     const voucher = await Vouchers.findOne({
       where: {
-        invoice_Id: String(req.body.id)
+        invoice_Id: req.body.id.toString()
       }
     })
     const voucher_Heads = await Voucher_Heads.destroy({
@@ -1043,7 +1044,7 @@ routes.post("/unApprove", async(req, res)=>{
     })
     await Vouchers.destroy({
       where: {
-        invoice_Id: String(req.body.id)
+        invoice_Id: req.body.id.toString()
       }
     })
     res.json({status: 'success'});
@@ -1337,19 +1338,19 @@ routes.get("/jobBalancing", async (req, res) => {
           ClientId: req.headers.party
         }
       })
-      if(!account){
-        account = await Vendor_Associations.findOne({
-          where:{
-            VendorId: req.headers.party
-          }
-        })
-      }
+      // if(!account){
+      //   account = await Vendor_Associations.findOne({
+      //     where:{
+      //       VendorId: req.headers.party
+      //     }
+      //   })
+      // }
     }
     if(req.headers.overseasagent){
       console.log("ID>>",req.headers.overseasagent)
-      account = await Vendor_Associations.findOne({
+      account = await Client_Associations.findOne({
         where:{
-          VendorId: req.headers.overseasagent
+          ClientId: req.headers.overseasagent
         }
       })
     }
@@ -1373,7 +1374,7 @@ routes.get("/jobBalancing", async (req, res) => {
       invoiceObj.payType=req.headers.paytype
     }
     // party wise invoice/bill
-    account?invoiceObj.party_Id=account.ChildAccountId:null
+    account?invoiceObj.party_Id=account.ChildAccountId.toString():null
     // Company wise invoice/bill
     if(req.headers.company=='4'){
       invoiceObj = {
@@ -1417,7 +1418,7 @@ routes.get("/jobBalancing", async (req, res) => {
           attributes:['name']
         },
         {
-          model: Vendors,
+          model: Clients,
           as:'shipping_line', 
           attributes:['name']
         },
