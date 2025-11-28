@@ -41,6 +41,35 @@ async function getAccountHierarchy(parentId = null) {
   return result;
 }
 
+async function getAccountVoucherHierarchy(parentId = null, company) {
+  const accounts = await Child_Account.findAll({
+    where: { ChildAccountId: parentId },
+    // attributes: ['id', 'title', 'editable', 'ChildAccountId', 'code', 'subCategory', 'createdAt'],
+    order: [['id', 'ASC']],
+    include: [{
+      model: Voucher_Heads,
+      include: [{
+        model: Vouchers,
+        attributes: ['id', 'vType'],
+        where: { CompanyId: company }
+      }]
+    }]
+  });
+
+  // Recursively attach children
+  const result = await Promise.all(
+    accounts.map(async (account) => {
+      const children = await getAccountVoucherHierarchy(account.id, company);
+      return {
+        ...account.get({ plain: true }),
+        children
+      };
+    })
+  );
+
+  return result;
+}
+
 async function getAllAccounts(id){
   try{
     let result;
@@ -826,6 +855,77 @@ function buildChildInclude(depth, companyId) {
     ]
   };
 }
+
+routes.get("/balanceSheetOld", async(req, res) => {
+  try{
+    console.log("Fetching account voucher hierarchy...", req.headers.companyid)
+    const accounts = await getAccountVoucherHierarchy(null, parseInt(req.headers.companyid));
+    
+    const balances = await Voucher_Heads.findAll({
+      attributes: [
+        "ChildAccountId",
+
+        // SUM debit
+        [
+          db.sequelize.literal(`
+            SUM(
+              CASE 
+                WHEN "Voucher_Heads"."type" = 'debit' 
+                  THEN CAST("Voucher_Heads"."defaultAmount" AS NUMERIC)
+                ELSE 0
+              END
+            )
+          `),
+          "debit"
+        ],
+
+        // SUM credit
+        [
+          db.sequelize.literal(`
+            SUM(
+              CASE 
+                WHEN "Voucher_Heads"."type" = 'credit' 
+                  THEN CAST("Voucher_Heads"."defaultAmount" AS NUMERIC)
+                ELSE 0
+              END
+            )
+          `),
+          "credit"
+        ]
+      ],
+
+      include: [
+        {
+          model: Vouchers,
+          attributes: [],
+          where: {
+            CompanyId: req.headers.companyid,
+            ...(req.query.from &&
+              req.query.to && {
+                createdAt: { [Op.between]: [req.query.from, req.query.to] }
+              })
+          }
+        }
+      ],
+
+      group: ["ChildAccountId"],
+      raw: true
+    });
+
+    const balanceMap = {};
+    balances.forEach(b => {
+      balanceMap[b.ChildAccountId] = {
+        debit: parseFloat(b.debit),
+        credit: parseFloat(b.credit),
+      };
+    });
+
+    res.json({status:'success', result:{ accounts, balances }});
+  }catch(error){
+    console.error(error)
+    res.json({status:'error', result:error});
+  }
+});
 
 
 routes.get("/balanceSheet", async(req, res) => {
