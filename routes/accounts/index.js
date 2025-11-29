@@ -860,67 +860,8 @@ routes.get("/balanceSheetOld", async(req, res) => {
   try{
     console.log("Fetching account voucher hierarchy...", req.headers.companyid)
     const accounts = await getAccountVoucherHierarchy(null, parseInt(req.headers.companyid));
-    
-    const balances = await Voucher_Heads.findAll({
-      attributes: [
-        "ChildAccountId",
 
-        // SUM debit
-        [
-          db.sequelize.literal(`
-            SUM(
-              CASE 
-                WHEN "Voucher_Heads"."type" = 'debit' 
-                  THEN CAST("Voucher_Heads"."defaultAmount" AS NUMERIC)
-                ELSE 0
-              END
-            )
-          `),
-          "debit"
-        ],
-
-        // SUM credit
-        [
-          db.sequelize.literal(`
-            SUM(
-              CASE 
-                WHEN "Voucher_Heads"."type" = 'credit' 
-                  THEN CAST("Voucher_Heads"."defaultAmount" AS NUMERIC)
-                ELSE 0
-              END
-            )
-          `),
-          "credit"
-        ]
-      ],
-
-      include: [
-        {
-          model: Vouchers,
-          attributes: [],
-          where: {
-            CompanyId: req.headers.companyid,
-            ...(req.query.from &&
-              req.query.to && {
-                createdAt: { [Op.between]: [req.query.from, req.query.to] }
-              })
-          }
-        }
-      ],
-
-      group: ["ChildAccountId"],
-      raw: true
-    });
-
-    const balanceMap = {};
-    balances.forEach(b => {
-      balanceMap[b.ChildAccountId] = {
-        debit: parseFloat(b.debit),
-        credit: parseFloat(b.credit),
-      };
-    });
-
-    res.json({status:'success', result:{ accounts, balances }});
+    res.json({status:'success', result:{ accounts }});
   }catch(error){
     console.error(error)
     res.json({status:'error', result:error});
