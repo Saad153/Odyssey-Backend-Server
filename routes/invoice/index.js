@@ -723,21 +723,14 @@ routes.get("/getAllInvoiceData", async(req, res) => {
 
     let heads = []
     for(let x of vouchers){
-      let party
-      if(req.headers.party_type != "vendor" && req.headers.party_type != "agent"){
-        party = await Client_Associations.findOne({
-          where:{ClientId:req.headers.party_id}
-        })
-      }else{
-        party = await Vendor_Associations.findOne({
-          where:{VendorId:req.headers.party_id}
-        })
-      }
-      console.log(party.id)
+      // let party = await Client_Associations.findOne({
+      //   where:{ClientId:req.headers.party_id}
+      // })
+      // console.log(party.id)
       const head = await Voucher_Heads.findAll({
         where: {
           VoucherId: x.id,
-          ChildAccountId: party.ChildAccountId,
+          ChildAccountId: req.headers.party_id,
           narration: {
             [Op.notLike]: '%Ex-Rate%'
           }

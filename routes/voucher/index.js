@@ -449,9 +449,11 @@ routes.get("/getVoucherByIdAdvanced", async (req, res) => {
         include: [{
           model: Child_Account,
           include: [{
-            model: Parent_Account,
+            model: Child_Account,
+            as: 'parent',
             include: [{
-              model: Accounts
+              model: Child_Account,
+              as: 'parent'
             }]
           }]
         }]

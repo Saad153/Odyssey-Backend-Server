@@ -206,34 +206,68 @@ routes.get(`/${url}/search`, async(req, res) => {
   }
 });
 
+async function getAccountVoucherHierarchy(parentId = null, company) {
+  const accounts = await Child_Account.findAll({
+    where: { ChildAccountId: parentId },
+    // attributes: ['id', 'title', 'editable', 'ChildAccountId', 'code', 'subCategory', 'createdAt'],
+    order: [['id', 'ASC']],
+    include: [{
+      model: Voucher_Heads,
+      include: [{
+        model: Vouchers,
+        attributes: ['id', 'vType'],
+        where: { CompanyId: company }
+      }]
+    }]
+  });
+
+  // Recursively attach children
+  const result = await Promise.all(
+    accounts.map(async (account) => {
+      const children = await getAccountVoucherHierarchy(account.id, company);
+      return {
+        ...account.get({ plain: true }),
+        children
+      };
+    })
+  );
+
+  return result;
+}
+
 routes.get(`/${url}/incomeStatement`, async(req, res) => {
   try {
-    const result = await Accounts.findAll({
-      where:{
-        id:[1, 2]
-      },
-      include:[{
-        model:Parent_Account,
-        attributes:['id'],
-        where:{CompanyId:req.headers.company},
-          include:[{
-            model:Child_Account,
-            attributes:['id', 'title'],
-            // order: [[{ model: Voucher_Heads }, 'createdAt', 'DESC']],
-            include:[{
-              model:Voucher_Heads,
-              // order: [['createdAt', 'ASC']],
-              attributes:['amount', 'defaultAmount', 'type', 'accountType', 'settlement', 'createdAt'],
-              where:{
-                createdAt: {
-                  [Op.gte]: moment(req.headers.from).toDate(),
-                  [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
-                }
-              },
-            }]
-          }],
-      }]
-    })
+    // const result = await Child_Account.findAll({
+    //   where:{
+    //     id:[1, 2]
+    //   },
+    //   include:[{
+    //     model:Child_Account,
+    //     as: 'children',
+    //     attributes:['id'],
+    //     where:{CompanyId:req.headers.company},
+    //       include:[{
+    //         model:Child_Account,
+    //         as: 'children',
+    //         attributes:['id', 'title'],
+    //         // order: [[{ model: Voucher_Heads }, 'createdAt', 'DESC']],
+    //         include:[{
+    //           model:Voucher_Heads,
+    //           // order: [['createdAt', 'ASC']],
+    //           attributes:['amount', 'defaultAmount', 'type', 'accountType', 'settlement', 'createdAt'],
+    //           where:{
+    //             createdAt: {
+    //               [Op.gte]: moment(req.headers.from).toDate(),
+    //               [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
+    //             }
+    //           },
+    //         }]
+    //       }],
+    //   }]
+    // })
+
+    const result = await getAccountVoucherHierarchy(null, req.headers.company);
+
     res.json({status:'success', result:result});
   }
   catch (error) {
