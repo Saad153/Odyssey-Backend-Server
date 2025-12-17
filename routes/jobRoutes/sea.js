@@ -7,7 +7,7 @@ const { Charge_Head } = require("../../functions/Associations/incoiceAssociation
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
-const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
+// const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require("../../functions/Associations/vesselAssociations");
 const { Commodity, Vessel, Charges, Invoice }=require("../../models");
@@ -27,6 +27,28 @@ const getJob = (id) => {
   })
   return finalResult 
 }
+
+routes.get("/getJobNumbers", async(req, res) => {
+  let result = await SE_Job.findAll({
+    attributes:['id', 'jobNo'],
+    include:[{
+      model:Clients,
+      attributes:['name']
+    },
+    {
+      model:Clients,
+      as:'consignee',
+      attributes:['name']
+    },
+    {
+      model: Bl,
+      attributes:['hbl', 'mbl']
+    }
+  ]
+  })
+  console.log(result)
+  res.json({status:'success', result:result});
+});
 
 routes.get("/getValues", async(req, res) => {
   console.log("============Request Made=====================")
@@ -1391,12 +1413,14 @@ routes.post("/UploadSEJobs", async (req, res) => {
       }
 
 
-      const accounts = await Child_Account.findAll({ include: Parent_Account });
+      const accounts = await Child_Account.findAll({ include: [
+        { model: Child_Account, as: 'parent' }
+      ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
         const companyId = a.Parent_Account?.CompanyId;
         if (companyId) {
-          accountMap.set(`${a.title}-${companyId}`, { id: a.id, subCategory: a.subCategory });
+          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
         }
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
@@ -1461,7 +1485,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -1694,7 +1718,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -1705,7 +1729,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -1939,7 +1963,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -2011,7 +2035,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -2096,7 +2120,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                 operation: invoiceOperation,
                 currency: i.GL_Currencies.CurrencyCode,
                 ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA?.ClientId : CA?.VendorId,
+                party_Id: CA?.ClientId,
                 party_Name: account.title,
                 paid: 0,
                 recieved: 0,
@@ -2220,7 +2244,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -2231,7 +2255,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -2439,7 +2463,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -2762,12 +2786,14 @@ routes.post("/UploadSIJobs", async (req, res) => {
       }
 
 
-      const accounts = await Child_Account.findAll({ include: Parent_Account });
+      const accounts = await Child_Account.findAll({ include: [
+        { model: Child_Account, as: 'parent' }
+      ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
         const companyId = a.Parent_Account?.CompanyId;
         if (companyId) {
-          accountMap.set(`${a.title}-${companyId}`, { id: a.id, subCategory: a.subCategory });
+          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
         }
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
@@ -2832,7 +2858,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -3064,7 +3090,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -3075,7 +3101,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -3283,7 +3309,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -3355,7 +3381,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -3440,7 +3466,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                 operation: invoiceOperation,
                 currency: i.GL_Currencies.CurrencyCode,
                 ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA?.ClientId : CA?.VendorId,
+                party_Id: CA?.ClientId,
                 party_Name: account.title,
                 paid: 0,
                 recieved: 0,
@@ -3590,7 +3616,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -3601,7 +3627,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -3808,7 +3834,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -4025,13 +4051,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
         const savedBl = await Bl.create(BL)
       }
 
-      const accounts = await Child_Account.findAll({ include: Parent_Account });
+      const accounts = await Child_Account.findAll({ include: [
+        { model: Child_Account, as: 'parent' }
+      ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}-${companyId}`, { id: a.id, subCategory: a.subCategory });
-        }
+        // const companyId = a.Child_Account?.CompanyId;
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
@@ -4095,7 +4121,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -4120,9 +4146,9 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
                 // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
               }
-  
+              // console.log("Party Code:", partyCode)
               const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
+                where: { id: partyCode.toString() },
               })
   
               let ipartyType = ''
@@ -4142,34 +4168,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
               let CA = null
 
               if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
+                // console.log("Account Found:", account.title, account.id)
+                CA = await Client_Associations.findOne({
+                  where: {
+                    ChildAccountId: account.id
                   }
-                }
+                })
               }
   
               let inv = {
@@ -4181,7 +4185,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 operation: invoiceOperation,
                 currency: i.GL_Currencies.CurrencyCode,
                 ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
+                party_Id: CA.ClientId,
                 party_Name: account.title,
                 paid: 0,
                 recieved: 0,
@@ -4203,96 +4207,18 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
 
               let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
+              let temp = await Client_Associations.findOne({
+                where: {
+                  // CompanyId: companyId,
+                  ChildAccountId: CAID
                 }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
+              })
+              if(temp){
                 p = await Clients.findOne({
                   where: {
-                    id: temp.VendorId
+                    id: temp.ClientId
                   }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
+                })
               }
 
               let vch = await Vouchers.create({
@@ -4328,7 +4254,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -4339,7 +4265,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -4366,7 +4292,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
   
               const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
+                where: { id: partyCode.toString() },
               })
   
               let ipartyType = ''
@@ -4386,34 +4312,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
               let CA = null
 
               if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
+                CA = await Client_Associations.findOne({
+                  where: {
+                    ChildAccountId: account.id
                   }
-                }
+                })
               }
   
   
@@ -4448,96 +4351,18 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
 
               let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
+              let temp = await Client_Associations.findOne({
+                where: {
+                  // CompanyId: companyId,
+                  ChildAccountId: CAID
                 }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
+              })
+              if(temp){
                 p = await Clients.findOne({
                   where: {
-                    id: temp.VendorId
+                    id: temp.ClientId
                   }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
+                })
               }
 
               let vch = await Vouchers.create({
@@ -4573,7 +4398,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -4645,7 +4470,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -4672,7 +4497,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
   
               const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
+                where: { id: partyCode.toString() },
               })
   
               let ipartyType = ''
@@ -4692,33 +4517,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
               let CA = null
 
               if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                      where: {
-                        ChildAccountId: account.id
-                      }
-                    })
+                CA = await Client_Associations.findOne({
+                  where: {
+                    ChildAccountId: account.id
                   }
-                }
+                })
               }
   
               let inv = {
@@ -4730,7 +4533,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                 operation: invoiceOperation,
                 currency: i.GL_Currencies.CurrencyCode,
                 ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA?.ClientId : CA?.VendorId,
+                party_Id: CA?.ClientId,
                 party_Name: account.title,
                 paid: 0,
                 recieved: 0,
@@ -4755,66 +4558,18 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
 
               let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
+              let temp = await Client_Associations.findOne({
+                where: {
+                  // CompanyId: companyId,
+                  ChildAccountId: CAID
+                }
+              })
+              if(temp){
+                p = await Clients.findOne({
                   where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
+                    id: temp.ClientId
                   }
                 })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
               }
               if(!p){
                 // console.log(party)
@@ -4854,7 +4609,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -4865,7 +4620,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -4892,7 +4647,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
   
               const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
+                where: { id: partyCode.toString() },
               })
   
               let ipartyType = ''
@@ -4912,34 +4667,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
               let CA = null
 
               if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
+                CA = await Client_Associations.findOne({
+                  where: {
+                    ChildAccountId: account.id
                   }
-                }
+                })
               }
   
   
@@ -4974,66 +4706,18 @@ routes.post("/UploadAEJobs", async (req, res) => {
               }
 
               let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
+              let temp = await Client_Associations.findOne({
+                where: {
+                  // CompanyId: companyId,
+                  ChildAccountId: CAID
+                }
+              })
+              if(temp){
+                p = await Clients.findOne({
                   where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
+                    id: temp.ClientId
                   }
                 })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
               }
               if(!p){
                 // console.log(party)
@@ -5073,7 +4757,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -5285,12 +4969,14 @@ routes.post("/UploadAIJobs", async (req, res) => {
         const savedBl = await Bl.create(BL)
       }
 
-      const accounts = await Child_Account.findAll({ include: Parent_Account });
+      const accounts = await Child_Account.findAll({ include: [
+        { model: Child_Account, as: 'parent' }
+      ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
         const companyId = a.Parent_Account?.CompanyId;
         if (companyId) {
-          accountMap.set(`${a.title}-${companyId}`, { id: a.id, subCategory: a.subCategory });
+          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
         }
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
@@ -5355,7 +5041,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -5588,7 +5274,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -5599,7 +5285,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -5833,7 +5519,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -5905,7 +5591,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -5990,7 +5676,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                 operation: invoiceOperation,
                 currency: i.GL_Currencies.CurrencyCode,
                 ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA?.ClientId : CA?.VendorId,
+                party_Id: CA?.ClientId,
                 party_Name: account.title,
                 paid: 0,
                 recieved: 0,
@@ -6114,7 +5800,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }
@@ -6125,7 +5811,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
             let CAID = 0;
 
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
 
             if (accountMap.has(accountKey)) {
               CAID = accountMap.get(accountKey).id;
@@ -6333,7 +6019,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
                   createdAt: vch.AddOn,
                   updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
                   VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
                 }
                 await Voucher_Heads.create(Voucher_Head, { silent: true });
               }

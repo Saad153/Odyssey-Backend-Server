@@ -3,9 +3,9 @@ const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../f
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
-const { Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
+// const { Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
-const { Vendors } = require("../../functions/Associations/vendorAssociations");
+// const { Vendors } = require("../../functions/Associations/vendorAssociations");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
 const { Accounts, Vessel, Transaction } = require("../../models");
@@ -1322,10 +1322,10 @@ routes.get('/testGetLastInvoice', async(req, res) => {
 // displays job data according to Invoice balance Page
 routes.get("/jobBalancing", async (req, res) => {
   try {
-    console.log(req.headers)
+    // console.log(req.headers)
     let account
     if(req.headers.party){
-      console.log("ID>>",req.headers.party)
+      // console.log("ID>>",req.headers.party)
       account = await Client_Associations.findOne({
         where:{
           ClientId: req.headers.party
@@ -1340,7 +1340,7 @@ routes.get("/jobBalancing", async (req, res) => {
       // }
     }
     if(req.headers.overseasagent){
-      console.log("ID>>",req.headers.overseasagent)
+      // console.log("ID>>",req.headers.overseasagent)
       account = await Client_Associations.findOne({
         where:{
           ClientId: req.headers.overseasagent

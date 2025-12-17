@@ -11,13 +11,13 @@ Invoice.hasMany(Charge_Head, {
 });
 Charge_Head.belongsTo(Invoice);
 
-Invoice.hasMany(Invoice_Losses, {
-    foriegnKey:{
-        type: DataTypes.INTEGER,
-        allowNull:true
-    }
-});
-Invoice_Losses.belongsTo(Invoice);
+// Invoice.hasMany(Invoice_Losses, {
+//     foriegnKey:{
+//         type: DataTypes.INTEGER,
+//         allowNull:true
+//     }
+// });
+// Invoice_Losses.belongsTo(Invoice);
 
 Invoice.hasMany(Invoice_Transactions, {
     foriegnKey:{

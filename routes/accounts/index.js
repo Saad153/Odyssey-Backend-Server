@@ -7,7 +7,7 @@ const { Accounts } = require('../../models/');
 const { Invoice } = require("../../functions/Associations/incoiceAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
 const { Client_Associations, Clients } = require('../../functions/Associations/clientAssociation');
-const { Vendor_Associations, Vendors } = require('../../functions/Associations/vendorAssociations');
+// const { Vendor_Associations, Vendors } = require('../../functions/Associations/vendorAssociations');
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info } = require("../../functions/Associations/jobAssociations/seaExport");
 
@@ -581,8 +581,8 @@ routes.get("/getAccountsForTransaction", async(req, res) => {
       obj = { title:req.headers.type }
     }
     try {
-      // console.log(obj)
-      // console.log(ChildObj)
+      console.log(obj)
+      console.log(ChildObj)
       const result = await Child_Account.findAll({
         where:ChildObj,
         include:[{

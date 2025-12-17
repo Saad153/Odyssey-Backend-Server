@@ -2,7 +2,7 @@ const { Child_Account, Parent_Account } = require("../../functions/Associations/
 const { Invoice, Invoice_Losses, Invoice_Transactions } = require("../../functions/Associations/incoiceAssociations");
 const { Vouchers, Voucher_Heads }=require("../../functions/Associations/voucherAssociations");
 const { SE_Job, SE_Equipments, Commodity } = require("../../functions/Associations/jobAssociations/seaExport");
-const { Vendors } = require("../../functions/Associations/vendorAssociations");
+// const { Vendors } = require("../../functions/Associations/vendorAssociations");
 const { Clients }=require("../../functions/Associations/clientAssociation");
 const { Bl } = require('../../functions/Associations/jobAssociations/seaExport');
 
@@ -237,6 +237,7 @@ async function getAccountVoucherHierarchy(parentId = null, company) {
 
 routes.get(`/${url}/incomeStatement`, async(req, res) => {
   try {
+    // console.log("Headers>>", req.headers.company)
     // const result = await Child_Account.findAll({
     //   where:{
     //     id:[1, 2]

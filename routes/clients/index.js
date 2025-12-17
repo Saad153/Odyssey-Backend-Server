@@ -3,12 +3,12 @@ const Op = Sequelize.Op;
 const db = require("../../models");
 const moment = require("moment");
 const routes = require('express').Router();
-const { History } = require("../../functions/Associations/historyAssociations");
+// const { History } = require("../../functions/Associations/historyAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Voucher_Heads } = require('../../functions/Associations/voucherAssociations');
-const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
+// const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 
 const validTypes = [
   "Slot Operator",
