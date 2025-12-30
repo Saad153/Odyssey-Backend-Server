@@ -8,7 +8,7 @@ const { Employees } = require("../../functions/Associations/employeeAssociations
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 // const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Charge_Head, Invoice, Invoice_Transactions } = require("../../functions/Associations/incoiceAssociations");
-const { Accounts, sequelize } = require('../../models/');
+const { Accounts, sequelize, Direct_Job, Direct_Job_Association } = require('../../models/');
 const { Op, literal } = Sequelize;
 
 //Voucher Types
@@ -1312,266 +1312,504 @@ routes.post("/importV", async (req, res) => {
   }
 });
 
+// routes.post("/importI", async (req, res) => {
+//   try{
+//     const data = req.body.records
+
+//     console.log(data.length)
+
+//     const accounts = await Child_Account.findAll();
+//     const accountMap = new Map();
+//     accounts.forEach((a) => {
+//       accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
+//     });
+
+//     for(let I of data){
+//       // console.log(I.InvoiceNumber)
+
+//       let CAID = 0;
+//       let companyId = I.InvoiceNumber.includes("SNS") ? 1 : 3;
+      
+//       const accountKey = `${I.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
+
+//       if (accountMap.has(accountKey)) {
+//         CAID = accountMap.get(accountKey).id;
+//       } else {
+//         console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
+//       }
+
+//       let savedInvoice = await Invoice.findOne({where:{climaxId:I.Id.toString()}})
+      
+//       if(!savedInvoice){
+//         console.log(I.InvoiceNumber)
+//         let i = I
+//         let invoiceiType = ""
+//         let invoicePayType = ""
+//         let invoiceOperation = ""
+//         let partyCode = 0
+//         if(I.InvoiceNumber.includes("JI")){
+//           invoiceiType = "Job Invoice"
+//           invoicePayType = "Recievable"
+//           invoiceOperation = "JI"
+//         }
+//         if(I.InvoiceNumber.includes("JB")){
+//           invoiceiType = "Job Bill"
+//           invoicePayType = "Payble"
+//           invoiceOperation = "JB"
+//         }
+//         if(I.InvoiceNumber.includes("AI")){
+//           invoiceiType = "Agent Invoice"
+//           if(I.GL_InvMode.ModeType == "Receivable"){
+//             invoicePayType = "Recievable"
+//           }else{
+//             invoicePayType = "Payble"
+//           }
+//           invoiceOperation = "AI"
+//         }
+
+
+//         if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
+//         }else{
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
+//         }
+
+//         const account = await Child_Account.findOne({
+//           where: { id: partyCode.toString() },
+//         })
+
+//         let ipartyType = ''
+
+//         let CA = null
+
+//         if(account){
+//           if(ipartyType == "client"){
+//             CA = await Client_Associations.findOne({
+//               where: {
+//                 ChildAccountId: account.id
+//               }
+//             })
+//           }
+//         }
+
+
+//         let inv = {
+//           invoice_No: i.InvoiceNumber,
+//           invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           type: invoiceiType,
+//           payType: invoicePayType,
+//           status: '1',
+//           operation: invoiceOperation,
+//           currency: i.GL_Currencies.CurrencyCode,
+//           ex_rate: i.ExchangeRate,
+//           party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
+//           party_Name: account.title,
+//           paid: 0,
+//           recieved: 0,
+//           roundOff: '0',
+//           total: i.InvoiceAmount,
+//           approved: '1',
+//           companyId: companyId,
+//           partyType: ipartyType,
+//           note: i.Remarks,
+//           createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           // SEJobId: savedJob.id,
+//           climaxId: i.Id
+//         }
+//         savedInvoice = await Invoice.create(inv, {silent: true});
+
+//         // if(!invoice){
+//         //   savedCP.update({InvoiceId:savedInvoice.id})
+//         // }
+
+//         let p
+//         if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+//           // console.log("------Vendor------")
+//           if(temp){
+//             p = await Vendors.findOne({
+//               where: {
+//                 id: temp.VendorId
+//               }
+//             })
+//           }
+//           if(!p){
+//             let temp = await Client_Associations.findOne({
+//               where: {
+//                 CompanyId: companyId,
+//                 ChildAccountId: CAID
+//               }
+//             })
+//             if(temp){
+//               p = await Clients.findOne({
+//                 where: {
+//                   id: temp.ClientId
+//                 }
+//               })
+//             }
+//           }
+//         }else{
+//           // console.log("------Client------")
+//           let temp = await Client_Associations.findOne({
+//             where: {
+//               CompanyId: companyId,
+//               ChildAccountId: CAID
+//             }
+//           })
+//           if(temp){
+//             p = await Clients.findOne({
+//               where: {
+//                 id: temp.ClientId
+//               }
+//             })
+//           }
+//           if(!p){
+//             let temp = await Vendor_Associations.findOne({
+//               where: {
+//                 CompanyId: companyId,
+//                 ChildAccountId: CAID
+//               }
+//             })
+//             if(temp){
+//               p = await Vendors.findOne({
+//                 where: {
+//                   id: temp.VendorId
+//                 }
+//               })
+//             }
+//           }
+//         }
+//         if(!p){
+//           // console.log(party)
+//           console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
+//         }
+
+//         let vch = await Vouchers.create({
+//           voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           voucher_Id: i.GL_Voucher.VoucherNo,
+//           type: i.GL_Voucher.GL_VoucherType.VoucherType,
+//           vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+//           currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+//           exRate: i.GL_Voucher.ExchangeRate,
+//           chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+//           chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+//           voucherNarration: i.GL_Voucher.Narration,
+//           costCenter: "KHI",
+//           onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           partyId: p.id,
+//           partyName: p.name,
+//           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           tranDate: i.GL_Voucher.VoucherDate,
+//           createdBy: i.GL_Voucher.AddLog,
+//           createdAt: moment(i.GL_Voucher.AddOn),
+//           updatedAt: i.GL_Voucher.EditOn?moment(i.GL_Voucher.EditOn):moment(i.GL_Voucher.AddOn) || moment().format("YYYY-MM-DD"),
+//           CompanyId: companyId,
+//           invoice_Id: savedInvoice.id
+//         }, {silent: true});
+
+//         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
+//           let Voucher_Head = {
+//             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+//             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+//             type: vh.DebitLC == 0 ? "credit" : "debit",
+//             narration: vh.NarrationVD,
+//             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+//             createdAt: vch.createdAt,
+//             updatedAt: vch.updatedAt || moment().format("YYYY-MM-DD"),
+//             VoucherId: vch.id,
+//             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
+//           }
+//           await Voucher_Heads.create(Voucher_Head, {silent: true});
+//         }
+//       }
+//     }
+//     res.json({status:'success', result: req.body});
+//   }catch(e){
+//     console.error("Error", e)
+//     res.status(500).json({ status: "error", result: e})
+//   }
+// })
+
 routes.post("/importI", async (req, res) => {
-  try{
-    const data = req.body.records
+  try {
+    const data = req.body.records;
 
-    console.log(data.length)
-
-    const accounts = await Child_Account.findAll({ include: Parent_Account });
+    const accounts = await Child_Account.findAll();
     const accountMap = new Map();
-    accounts.forEach((a) => {
-      const cID = a.Parent_Account?.CompanyId;
-      if (cID) {
-        accountMap.set(`${a.title}-${cID}`, { id: a.id, subCategory: a.subCategory });
+    accounts.forEach(a => {
+      accountMap.set(a.title, a.id);
+    });
+
+    for (const I of data) {
+      let companyId = I.InvoiceNumber.includes("SNS") ? 1 : 3;
+
+      const accountName =
+        I.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName;
+
+      const CAID = accountMap.get(accountName) || null;
+
+      if (!CAID) {
+        console.warn(`⚠️ No Child Account for ${accountName}`);
+        continue;
+      }
+
+      let savedInvoice = await Invoice.findOne({
+        where: { climaxId: I.Id.toString() }
+      });
+
+      if (savedInvoice) continue;
+
+      /* ---------------- Invoice Meta ---------------- */
+
+      let invoiceType = "";
+      let payType = "";
+      let operation = "";
+
+      if (I.InvoiceNumber.includes("JI")) {
+        invoiceType = "Job Invoice";
+        payType = "Recievable";
+        operation = "JI";
+      }
+      if (I.InvoiceNumber.includes("JB")) {
+        invoiceType = "Job Bill";
+        payType = "Payble";
+        operation = "JB";
+      }
+      if (I.InvoiceNumber.includes("AI")) {
+        invoiceType = "Agent Invoice";
+        payType =
+          I.GL_InvMode.ModeType === "Receivable"
+            ? "Recievable"
+            : "Payble";
+        operation = "AI";
+      }
+
+      /* ---------------- Party Resolution ---------------- */
+
+      const CA = await Client_Associations.findOne({
+        where: { ChildAccountId: CAID }
+      });
+
+      if (!CA) {
+        console.warn(
+          `⚠️ No Client_Association for CAID: ${CAID}`
+        );
+        continue;
+      }
+
+      const party = await Clients.findOne({
+        where: { id: CA.ClientId }
+      });
+
+      if (!party) {
+        console.warn(
+          `⚠️ Client not found for association ID: ${CA.id}`
+        );
+        continue;
+      }
+
+      /* ---------------- Create Invoice ---------------- */
+
+      savedInvoice = await Invoice.create({
+        invoice_No: I.InvoiceNumber,
+        invoice_Id: I.InvoiceNumber.split("-")[2]
+          .split("/")[0]
+          .replace(/^0+/, ""),
+        type: invoiceType,
+        payType,
+        status: "1",
+        operation,
+        currency: I.GL_Currencies.CurrencyCode,
+        ex_rate: I.ExchangeRate,
+        party_Id: party.id,
+        party_Name: party.name,
+        partyType: "client",
+        paid: 0,
+        recieved: 0,
+        roundOff: "0",
+        total: I.InvoiceAmount,
+        approved: "1",
+        companyId,
+        note: I.Remarks,
+        createdAt: moment(I.invoiceDate) || moment(),
+        updatedAt: moment(I.invoiceDate) || moment(),
+        climaxId: I.Id
+      }, { silent: true });
+
+      /* ---------------- Create Voucher ---------------- */
+
+      const vch = await Vouchers.create({
+        voucher_No: I.GL_Voucher.VoucherNo.split("-")[2]
+          .split("/")[0]
+          .replace(/^0+/, ""),
+        voucher_Id: I.GL_Voucher.VoucherNo,
+        type: I.GL_Voucher.GL_VoucherType.VoucherType,
+        vType: I.GL_Voucher.GL_VoucherType.TypeCode,
+        currency: I.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+        exRate: I.GL_Voucher.ExchangeRate,
+        chequeNo: I.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+        chequeDate: I.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+        voucherNarration: I.GL_Voucher.Narration,
+        costCenter: "KHI",
+        onAccount: "client",
+        partyId: party.id,
+        partyName: party.name,
+        partyType: "client",
+        tranDate: I.GL_Voucher.VoucherDate,
+        createdBy: I.GL_Voucher.AddLog,
+        createdAt: moment(I.GL_Voucher.AddOn),
+        updatedAt:
+          moment(I.GL_Voucher.EditOn) ||
+          moment(I.GL_Voucher.AddOn),
+        CompanyId: companyId,
+        invoice_Id: savedInvoice.id
+      }, { silent: true });
+
+      /* ---------------- Voucher Heads ---------------- */
+
+      for (const vh of I.GL_Voucher.GL_Voucher_Detail) {
+        const headCAID = accountMap.get(vh.GL_COA.AccountName);
+
+        if (!headCAID) continue;
+
+        await Voucher_Heads.create({
+          defaultAmount:
+            vh.DebitLC === 0 ? vh.CreditLC : vh.DebitLC,
+          amount:
+            vh.DebitVC === 0 ? vh.CreditVC : vh.DebitVC,
+          type: vh.DebitLC === 0 ? "credit" : "debit",
+          narration: vh.NarrationVD,
+          accountType:
+            vh.GL_COA.GL_COASubCategory.SubCategory,
+          createdAt: vch.createdAt,
+          updatedAt: vch.updatedAt,
+          VoucherId: vch.id,
+          ChildAccountId: headCAID
+        }, { silent: true });
+      }
+    }
+
+    res.json({ status: "success" });
+  } catch (e) {
+    console.error("Error", e);
+    res.status(500).json({ status: "error", error: e.message });
+  }
+});
+
+routes.post("/createDirectJob", async (req, res) => {
+  try {
+    let dJob
+    let Voucher
+    await sequelize.transaction(async (t) => {
+
+      const { direct_Job, direct_Job_Association } = req.body;
+
+      const jobNumber = await Direct_Job.findOne({
+        where: { Type: 'revenue' },
+        order: [['Entry_No', 'DESC']],
+        attributes: ['Entry_No']
+      });
+
+      // 1️⃣ Create Direct Job
+      direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      dJob = await Direct_Job.create(direct_Job, { transaction: t });
+      
+      let vouchervType
+      if(direct_Job.Type == 'revenue'){
+        vouchervType = direct_Job.Tran_Mode == 'bank' ? 'BRV' : direct_Job.Tran_Mode == 'cash' ? 'CRV' : 'DN'
+      }else{
+        vouchervType = direct_Job.Tran_Mode == 'bank' ? 'BPV' : direct_Job.Tran_Mode == 'cash' ? 'CPV' : 'CN'
+      }
+
+
+      const voucher = await Vouchers.findOne({
+        where: {
+          vType: vouchervType,
+          CompanyId: direct_Job.companyId
+        },
+        order: [['voucher_No', 'DESC']],
+        attributes: ['voucher_No']
+      });
+
+      Voucher = await Vouchers.create({
+        voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
+        voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
+        type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
+        vType: vouchervType,
+        currency: direct_Job.Currency,
+        exRate: direct_Job.Ex_Rate,
+        chequeNo: direct_Job.Cheque_No,
+        chequeDate: direct_Job.Cheque_Date,
+        voucherNarration: direct_Job.Narration,
+        drawn_At: direct_Job.Drawn_At,
+        costCenter: 'KHI',
+        onAccount: direct_Job.Type == 'revenue' ? 'client' : 'vendor',
+        partyId: direct_Job.Paid_To,
+        partyName: direct_Job.Paid_Name,
+        partyType: direct_Job.Type == 'revenue' ? 'client' : 'vendor',
+        tranDate: direct_Job.Entry_Date,
+        createdBy: direct_Job.Add_By,
+        CompanyId: direct_Job.companyId
+      }, { transaction: t });
+
+      for(let DA of direct_Job_Association){
+        await Direct_Job_Association.create({
+          ...DA,
+          Voucher_Id: Voucher.id,
+          Direct_Job_Id: dJob.id
+        }, { transaction: t });
+
+        const job = await SE_Job.findOne({
+          where: {
+            id: DA.Job_Id
+          },
+          attributes: [ 'subType' ]
+        });
+        let Account
+        let DC = direct_Job.Type == 'revenue' ? 'credit' : 'debit'
+        if(job.subType == 'LCL'){
+          Account = direct_Job.Type == 'revenue' ? 'LCL FREIGHT INCOME' : 'LCL FREIGHT EXP'
+        }else{
+          Account = direct_Job.Type == 'revenue' ? 'FCL FREIGHT INCOME' : 'FCL FREIGHT EXPENSE'
+        }
+        const onAccount = await Child_Account.findOne({
+          where: {
+            title: Account
+          },
+          attributes: [ 'id' ]
+        });
+        await Voucher_Heads.create({
+          defaultAmount: DA.Amount * DA.Ex_Rate,
+          amount: direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount,
+          type: DC,
+          narration: DA.Description,
+          accountType: direct_Job.Type == 'revenue' ? 'Client' : 'Vendor',
+          VoucherId: Voucher.id,
+          ChildAccountId: onAccount.id,
+        }, { transaction: t })
+        await Voucher_Heads.create({
+          defaultAmount: DA.Amount * DA.Ex_Rate,
+          amount: direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount,
+          type: DC,
+          narration: DA.Description,
+          accountType: direct_Job.Type != 'revenue' ? 'Client' : 'Vendor',
+          VoucherId: Voucher.id,
+          ChildAccountId: direct_Job.Account_No,
+        }, { transaction: t })
       }
     });
 
-    for(let I of data){
-      // console.log(I.InvoiceNumber)
+    // ✔ Only send response AFTER transaction completes
+    res.json({ status: "success", result: { Entry_Number: dJob.Entry_No, Voucher_Number: Voucher.voucher_Id } });
 
-      let CAID = 0;
-      let companyId = I.InvoiceNumber.includes("SNS") ? 1 : 3;
-      
-      const accountKey = `${I.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
-
-      if (accountMap.has(accountKey)) {
-        CAID = accountMap.get(accountKey).id;
-      } else {
-        console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-      }
-
-      let savedInvoice = await Invoice.findOne({where:{climaxId:I.Id.toString()}})
-      
-      if(!savedInvoice){
-        console.log(I.InvoiceNumber)
-        let i = I
-        let invoiceiType = ""
-        let invoicePayType = ""
-        let invoiceOperation = ""
-        let partyCode = 0
-        if(I.InvoiceNumber.includes("JI")){
-          invoiceiType = "Job Invoice"
-          invoicePayType = "Recievable"
-          invoiceOperation = "JI"
-        }
-        if(I.InvoiceNumber.includes("JB")){
-          invoiceiType = "Job Bill"
-          invoicePayType = "Payble"
-          invoiceOperation = "JB"
-        }
-        if(I.InvoiceNumber.includes("AI")){
-          invoiceiType = "Agent Invoice"
-          if(I.GL_InvMode.ModeType == "Receivable"){
-            invoicePayType = "Recievable"
-          }else{
-            invoicePayType = "Payble"
-          }
-          invoiceOperation = "AI"
-        }
-
-
-        if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-          partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-          // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-        }else{
-          partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-          // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-        }
-
-        const account = await Child_Account.findOne({
-          where: { code: partyCode.toString() },
-        })
-
-        let ipartyType = ''
-
-        // if(CP.VendorId == job.ClientId){
-        //   ipartyType = "client"
-        // }else if(CP.VendorId == job.ConsigneeId){
-        //   ipartyType = "client" 
-        // }else if(CP.VendorId == job.ShipperId){
-        //   ipartyType = "client"
-        // }else if(CP.VendorId == job.OverseasAgentId){
-        //   ipartyType = "agent"
-        // }else{
-        //   ipartyType = "vendor"
-        // }
-
-        let CA = null
-
-        if(account){
-          if(ipartyType == "client"){
-            CA = await Client_Associations.findOne({
-              where: {
-                ChildAccountId: account.id
-              }
-            })
-          }else{
-            CA = await Vendor_Associations.findOne({
-              where: {
-                ChildAccountId: account.id
-              }
-            })
-          }
-          
-          if(!CA){
-            CA = await Client_Associations.findOne({
-              where: {
-                ChildAccountId: account.id
-              }
-            })
-            if(!CA){
-              CA = await Vendor_Associations.findOne({
-              where: {
-                ChildAccountId: account.id
-              }
-            })
-            }
-          }
-        }
-
-
-        let inv = {
-          invoice_No: i.InvoiceNumber,
-          invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-          type: invoiceiType,
-          payType: invoicePayType,
-          status: '1',
-          operation: invoiceOperation,
-          currency: i.GL_Currencies.CurrencyCode,
-          ex_rate: i.ExchangeRate,
-          party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-          party_Name: account.title,
-          paid: 0,
-          recieved: 0,
-          roundOff: '0',
-          total: i.InvoiceAmount,
-          approved: '1',
-          companyId: companyId,
-          partyType: ipartyType,
-          note: i.Remarks,
-          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-          // SEJobId: savedJob.id,
-          climaxId: i.Id
-        }
-        savedInvoice = await Invoice.create(inv, {silent: true});
-
-        // if(!invoice){
-        //   savedCP.update({InvoiceId:savedInvoice.id})
-        // }
-
-        let p
-        if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-          // console.log("------Vendor------")
-          let temp = await Vendor_Associations.findOne({
-            where: {
-              CompanyId: companyId,
-              ChildAccountId: CAID
-            }
-          })
-          if(temp){
-            p = await Vendors.findOne({
-              where: {
-                id: temp.VendorId
-              }
-            })
-          }
-          if(!p){
-            let temp = await Client_Associations.findOne({
-              where: {
-                CompanyId: companyId,
-                ChildAccountId: CAID
-              }
-            })
-            if(temp){
-              p = await Clients.findOne({
-                where: {
-                  id: temp.ClientId
-                }
-              })
-            }
-          }
-        }else{
-          // console.log("------Client------")
-          let temp = await Client_Associations.findOne({
-            where: {
-              CompanyId: companyId,
-              ChildAccountId: CAID
-            }
-          })
-          if(temp){
-            p = await Clients.findOne({
-              where: {
-                id: temp.ClientId
-              }
-            })
-          }
-          if(!p){
-            let temp = await Vendor_Associations.findOne({
-              where: {
-                CompanyId: companyId,
-                ChildAccountId: CAID
-              }
-            })
-            if(temp){
-              p = await Vendors.findOne({
-                where: {
-                  id: temp.VendorId
-                }
-              })
-            }
-          }
-        }
-        if(!p){
-          // console.log(party)
-          console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-        }
-
-        let vch = await Vouchers.create({
-          voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-          voucher_Id: i.GL_Voucher.VoucherNo,
-          type: i.GL_Voucher.GL_VoucherType.VoucherType,
-          vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-          currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-          exRate: i.GL_Voucher.ExchangeRate,
-          chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-          chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-          voucherNarration: i.GL_Voucher.Narration,
-          costCenter: "KHI",
-          onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-          partyId: p.id,
-          partyName: p.name,
-          partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-          tranDate: i.GL_Voucher.VoucherDate,
-          createdBy: i.GL_Voucher.AddLog,
-          createdAt: moment(i.GL_Voucher.AddOn),
-          updatedAt: i.GL_Voucher.EditOn?moment(i.GL_Voucher.EditOn):moment(i.GL_Voucher.AddOn) || moment().format("YYYY-MM-DD"),
-          CompanyId: companyId,
-          invoice_Id: savedInvoice.id
-        }, {silent: true});
-
-        for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-          let Voucher_Head = {
-            defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-            amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-            type: vh.DebitLC == 0 ? "credit" : "debit",
-            narration: vh.NarrationVD,
-            accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-            createdAt: vch.createdAt,
-            updatedAt: vch.updatedAt || moment().format("YYYY-MM-DD"),
-            VoucherId: vch.id,
-            ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`).id,
-          }
-          await Voucher_Heads.create(Voucher_Head, {silent: true});
-        }
-      }
-    }
-    res.json({status:'success', result: req.body});
-  }catch(e){
-    console.error("Error", e)
-    res.status(500).json({ status: "error", result: e})
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: "error", error: e.message });
   }
-})
+});
+
+
 
 module.exports = routes;

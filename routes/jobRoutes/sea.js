@@ -28,26 +28,65 @@ const getJob = (id) => {
   return finalResult 
 }
 
-routes.get("/getJobNumbers", async(req, res) => {
-  let result = await SE_Job.findAll({
-    attributes:['id', 'jobNo'],
-    include:[{
-      model:Clients,
-      attributes:['name']
-    },
-    {
-      model:Clients,
-      as:'consignee',
-      attributes:['name']
-    },
-    {
-      model: Bl,
-      attributes:['hbl', 'mbl']
-    }
-  ]
-  })
-  console.log(result)
-  res.json({status:'success', result:result});
+routes.get("/getJobNumbers", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    const offset = (page - 1) * limit;
+
+    const whereCondition = search
+      ? {
+          [Op.or]: [
+            { jobNo: { [Op.iLike]: `%${search}%` } },
+            { '$Client.name$': { [Op.iLike]: `%${search}%` } },
+            { '$consignee.name$': { [Op.iLike]: `%${search}%` } },
+            { '$Bl.hbl$': { [Op.iLike]: `%${search}%` } },
+            { '$Bl.mbl$': { [Op.iLike]: `%${search}%` } }
+          ]
+        }
+      : {};
+
+    const { rows, count } = await SE_Job.findAndCountAll({
+      attributes: ['id', 'jobNo', 'fileNo'],
+      where: whereCondition,
+      distinct: true,
+      limit,
+      offset,
+      order: [['id', 'DESC']],
+      include: [
+        {
+          model: Clients,
+          attributes: ['name'],
+          required: false
+        },
+        {
+          model: Clients,
+          as: 'consignee',
+          attributes: ['name'],
+          required: false
+        },
+        {
+          model: Bl,
+          attributes: ['hbl', 'mbl'],
+          required: false
+        }
+      ]
+    });
+
+    res.json({
+      status: 'success',
+      data: rows,
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit)
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 routes.get("/getValues", async(req, res) => {
@@ -1426,1050 +1465,11 @@ routes.post("/UploadSEJobs", async (req, res) => {
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
       if(job.SeaExportJob_ChargesPayb){
-        for(let CP of job.SeaExportJob_ChargesPayb){
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
-            invoiceType = "Job Bill"
-            partyType = "vendor"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-          }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Vendor.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Payble",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.Equip.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: "1",
-            currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateLine,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "Job Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "SE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "SE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true })
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesPayb(job.SeaExportJob_ChargesPayb, job, savedJob, accountMap, companyId)
       }
 
       if(job.SeaExportJob_ChargesRecv){
-        let i = 0
-        for(let CP of job.SeaExportJob_ChargesRecv){
-          // console.log(i)
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
-            invoiceType = "Job Invoice"
-            partyType = "client"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-          }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-            
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Customer.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Recievable",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.Equip.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: "1",
-            currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateClient,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "Job Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "SE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.CustomerId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.CustomerId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: CA?.ClientId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              if(!inv.party_Id){
-                console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "SE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
 
@@ -2735,54 +1735,6 @@ routes.post("/UploadSIJobs", async (req, res) => {
         }
   
         const savedBl = await Bl.create(BL)
-  
-        // if(bl.SImp_BL_Equipment?.length > 0){
-        //   for(let e of bl.SImp_BL_Equipment){
-        //     await Container_Info.create({
-        //       no: e.ContainerNo,
-        //       seal: e.SealNo,
-        //       size: e.EquipCode,
-        //       rategroup: e.RateGroup,
-        //       gross: e.GrossWt,
-        //       net: e.NetWt,
-        //       tare: e.GrossWt - e.NetWt,
-        //       wtUnit: e.WTUnitId == 2 ? "KGS" : "",
-        //       cbm: e.CBM,
-        //       pkgs: e.NoOfPackages,
-        //       unit: e.UNPacking?.PackName || null,
-        //       temp: e.Temperature,
-        //       loadType: e.LoadTypeId == 2 ? "FULL" : "EMPTY",
-        //       remarks: e.Remarks,
-        //       detention: "",
-        //       demurge: "",
-        //       plugin: "",
-        //       dg: e.dDGNonDGId == 2 ? "non-DG" : "DG",
-        //       number: e.dFormENumber,
-        //       date: bl.AddOn,
-        //       top: e.OOG_TOP,
-        //       right: e.OOG_RIGHT,
-        //       left: e.OOG_LEFT,
-        //       front: e.OOG_FRONT,
-        //       back: e.OOG_BACK,
-        //       createdAt: bl.AddOn,
-        //       updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
-        //       BlId: savedBl.id,
-        //     })
-        //   }
-        // }
-  
-        // if(bl.SExp_BL_Stamp){
-        //   for(let s of bl.SExp_BL_Stamp){
-        //     await Stamps.create({
-        //       code: s.Gen_Stamps?.StampCode,
-        //       stamps: s.Gen_Stamps?.StampName,
-        //       stamp_group: s.StampGroupId,
-        //       createdAt: bl.AddOn,
-        //       updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
-        //       BlId: savedBl.id,
-        //     })
-        //   }
-        // }
       }
 
 
@@ -2799,1048 +1751,11 @@ routes.post("/UploadSIJobs", async (req, res) => {
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
       if(job.SeaExportJob_ChargesPayb){
-        for(let CP of job.SeaExportJob_ChargesPayb){
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
-            invoiceType = "Job Bill"
-            partyType = "vendor"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-          }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Vendor.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Payble",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: "1",
-            currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateLine,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "Job Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "SI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "SI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesPayb(job.SeaExportJob_ChargesPayb, job, savedJob, accountMap, companyId)
       }
 
       if(job.SeaExportJob_ChargesRecv){
-        let i = 0
-        for(let CP of job.SeaExportJob_ChargesRecv){
-          // console.log(i)
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
-            invoiceType = "Job Invoice"
-            partyType = "client"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-          }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-            
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Customer.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Recievable",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: "1",
-            currency: CP.Currency.CurrencyCode,
-            amount: CP.Amount,
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateClient,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "Job Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "SI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.CustomerId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.CustomerId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: CA?.ClientId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              if(!inv.party_Id){
-                console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "SI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
 
@@ -3855,6 +1770,964 @@ const safeFindOne = async (model, id) => {
   if (!id) return null;
   return await model.findOne({ where: { climaxId: id } });
 };
+
+const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) => {
+  for(let CP of Charge){
+    const charge = await Charges.findOne({where:{code:CP.ChargesId}})
+    let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
+    // if(!party){
+    //   party = await Clients.findOne({where:{climaxId:CP.CustomerId}})
+    // }
+    let invoice_id
+    let invoiceType
+    let partyType
+    let invoice
+    if(CP.GL_JobBill_Charges){
+      invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
+      invoiceType = "Job Bill"
+      partyType = "vendor"
+      invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
+    }else if(CP.GL_AgentInvoice_Charges){
+      invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
+      invoiceType = "Agent Invoice"
+      partyType = "agent"
+      invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
+    }
+    let ChargeP = {
+      charge: charge?.id,
+      particular: charge?.name,
+      invoice_id: invoice_id,
+      description: CP.Description,
+      name: CP.Vendor.PartyName,
+      partyId: party.id,
+      invoiceType: invoiceType,
+      type: "Payble",
+      basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
+      pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
+      size_type: CP.EquipCode,
+      dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
+      qty: CP.Quantity,
+      rate_charge: CP.Rate,
+      currency: CP.Currency.CurrencyCode,
+      amount: "1",
+      discount: CP.DiscountAmount,
+      taxPerc: 0,
+      tax_apply: CP.TaxAmount > 0 ? true : false,
+      tax_amount: CP.TaxAmount,
+      net_amount: CP.NetAmount,
+      ex_rate: CP.ExchRateLine,
+      local_amount: CP.LocalAmount,
+      status: 1,
+      approved_by: "",
+      approved_date: "",
+      partyType: partyType,
+      InvoiceId: invoice?.id,
+      SEJobId: savedJob.id,
+    }
+
+    const savedCP = await Charge_Head.create(ChargeP)
+
+    if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
+
+      let CAID = 0;
+
+      const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
+
+      if (accountMap.has(accountKey)) {
+        CAID = accountMap.get(accountKey).id;
+      } else {
+        console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
+      }
+
+      let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
+
+      if(!savedInvoice){
+        let i = CP.GL_JobBill_Charges.JobBill.Invoice
+        let invoiceiType = "Job Bill"
+        let invoicePayType = "Payble"
+        let invoiceOperation = "AE"
+        let partyCode = 0
+
+
+        if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+          partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
+          // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
+        }else{
+          partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
+          // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
+        }
+        // console.log("Party Code:", partyCode)
+        const account = await Child_Account.findOne({
+          where: { id: partyCode.toString() },
+        })
+
+        let ipartyType = ''
+
+        if(CP.VendorId == job.ClientId){
+          ipartyType = "client"
+        }else if(CP.VendorId == job.ConsigneeId){
+          ipartyType = "client" 
+        }else if(CP.VendorId == job.ShipperId){
+          ipartyType = "client"
+        }else if(CP.VendorId == job.OverseasAgentId){
+          ipartyType = "agent"
+        }else{
+          ipartyType = "vendor"
+        }
+
+        let CA = null
+
+        if(account){
+          // console.log("Account Found:", account.title, account.id)
+          CA = await Client_Associations.findOne({
+            where: {
+              ChildAccountId: account.id
+            }
+          })
+        }
+
+        let inv = {
+          invoice_No: i.InvoiceNumber,
+          invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          type: invoiceiType,
+          payType: invoicePayType,
+          status: '1',
+          operation: invoiceOperation,
+          currency: i.GL_Currencies.CurrencyCode,
+          ex_rate: i.ExchangeRate,
+          party_Id: CA.ClientId,
+          party_Name: account.title,
+          paid: 0,
+          recieved: 0,
+          roundOff: '0',
+          total: i.InvoiceAmount,
+          approved: '1',
+          companyId: companyId,
+          partyType: ipartyType,
+          note: i.Remarks,
+          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          SEJobId: savedJob.id,
+          climaxId: i.Id
+        }
+        savedInvoice = await Invoice.create(inv, { silent: true })
+
+        if(!invoice){
+          savedCP.update({InvoiceId:savedInvoice.id})
+        }
+
+        let p
+        let temp = await Client_Associations.findOne({
+          where: {
+            // CompanyId: companyId,
+            ChildAccountId: CAID
+          }
+        })
+        if(temp){
+          p = await Clients.findOne({
+            where: {
+              id: temp.ClientId
+            }
+          })
+        }
+
+        let vch = await Vouchers.create({
+          voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          voucher_Id: i.GL_Voucher.VoucherNo,
+          type: i.GL_Voucher.GL_VoucherType.VoucherType,
+          vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+          currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+          exRate: i.GL_Voucher.ExchangeRate,
+          chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+          chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+          voucherNarration: i.GL_Voucher.Narration,
+          costCenter: "KHI",
+          onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+          partyId: p.id,
+          partyName: p.name,
+          partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+          tranDate: i.GL_Voucher.VoucherDate,
+          createdBy: i.GL_Voucher.AddLog,
+          createdAt: i.GL_Voucher.AddOn,
+          updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
+          CompanyId: companyId,
+          invoice_Id: savedInvoice.id
+        }, { silent: true });
+
+        for(let vh of i.GL_Voucher.GL_Voucher_Detail){
+          let Voucher_Head = {
+            defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+            amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+            type: vh.DebitLC == 0 ? "credit" : "debit",
+            narration: vh.NarrationVD,
+            accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+            createdAt: vch.AddOn,
+            updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+            VoucherId: vch.id,
+            ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
+          }
+          await Voucher_Heads.create(Voucher_Head, { silent: true });
+        }
+      }
+    }
+
+    if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
+
+      let CAID = 0;
+
+      const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
+
+      if (accountMap.has(accountKey)) {
+        CAID = accountMap.get(accountKey).id;
+      } else {
+        console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
+      }
+
+      let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
+
+      if(!savedInvoice){
+        let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
+        let invoiceiType = "Agent Bill"
+        let invoicePayType = "Payble"
+        let invoiceOperation = "AE"
+        let partyCode = 0
+
+
+        if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+          partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
+          // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
+        }else{
+          partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
+          // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
+        }
+
+        const account = await Child_Account.findOne({
+          where: { id: partyCode.toString() },
+        })
+
+        let ipartyType = ''
+
+        if(CP.VendorId == job.ClientId){
+          ipartyType = "client"
+        }else if(CP.VendorId == job.ConsigneeId){
+          ipartyType = "client" 
+        }else if(CP.VendorId == job.ShipperId){
+          ipartyType = "client"
+        }else if(CP.VendorId == job.OverseasAgentId){
+          ipartyType = "agent"
+        }else{
+          ipartyType = "vendor"
+        }
+
+        let CA = null
+
+        if(account){
+          CA = await Client_Associations.findOne({
+            where: {
+              ChildAccountId: account.id
+            }
+          })
+        }
+
+
+        let inv = {
+          invoice_No: i.InvoiceNumber,
+          invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          type: invoiceiType,
+          payType: invoicePayType,
+          status: '1',
+          operation: invoiceOperation,
+          currency: i.GL_Currencies.CurrencyCode,
+          ex_rate: i.ExchangeRate,
+          party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
+          party_Name: account.title,
+          paid: 0,
+          recieved: 0,
+          roundOff: '0',
+          total: i.InvoiceAmount,
+          approved: '1',
+          companyId: companyId,
+          partyType: ipartyType,
+          note: i.Remarks,
+          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          SEJobId: savedJob.id,
+          climaxId: i.Id
+        }
+        savedInvoice = await Invoice.create(inv, { silent: true })
+
+        if(!invoice){
+          savedCP.update({InvoiceId:savedInvoice.id})
+        }
+
+        let p
+        let temp = await Client_Associations.findOne({
+          where: {
+            // CompanyId: companyId,
+            ChildAccountId: CAID
+          }
+        })
+        if(temp){
+          p = await Clients.findOne({
+            where: {
+              id: temp.ClientId
+            }
+          })
+        }
+
+        let vch = await Vouchers.create({
+          voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          voucher_Id: i.GL_Voucher.VoucherNo,
+          type: i.GL_Voucher.GL_VoucherType.VoucherType,
+          vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+          currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+          exRate: i.GL_Voucher.ExchangeRate,
+          chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+          chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+          voucherNarration: i.GL_Voucher.Narration,
+          costCenter: "KHI",
+          onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+          partyId: p.id,
+          partyName: p.name,
+          partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+          tranDate: i.GL_Voucher.VoucherDate,
+          createdBy: i.GL_Voucher.AddLog,
+          createdAt: i.GL_Voucher.AddOn,
+          updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
+          CompanyId: companyId,
+          invoice_Id: savedInvoice.id
+        }, { silent: true });
+
+        for(let vh of i.GL_Voucher.GL_Voucher_Detail){
+          let Voucher_Head = {
+            defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+            amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+            type: vh.DebitLC == 0 ? "credit" : "debit",
+            narration: vh.NarrationVD,
+            accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+            createdAt: vch.AddOn,
+            updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+            VoucherId: vch.id,
+            ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
+          }
+          await Voucher_Heads.create(Voucher_Head, { silent: true });
+        }
+      }
+    }
+  }
+}
+
+// const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
+//   for(let CP of Charge){
+//     const charge = await Charges.findOne({where:{code:CP.ChargesId}})
+//     let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
+//     if(!party){
+//       party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
+//     }
+//     let invoice_id
+//     let invoiceType
+//     let partyType
+//     let invoice
+//     if(CP.GL_JobInvoice_Charges){
+//       invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
+//       invoiceType = "Job Invoice"
+//       partyType = "client"
+//       invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
+//     }else if(CP.GL_Agent_Invoice_Charges){
+//       invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
+//       invoiceType = "Agent Invoice"
+//       partyType = "agent"
+//       invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
+      
+//     }
+//     let ChargeP = {
+//       charge: charge?.id,
+//       particular: charge?.name,
+//       invoice_id: invoice_id,
+//       description: CP.Description,
+//       name: CP.Customer.PartyName,
+//       partyId: party.id,
+//       invoiceType: invoiceType,
+//       type: "Recievable",
+//       basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
+//       pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
+//       size_type: CP.EquipCode,
+//       dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
+//       qty: CP.Quantity,
+//       rate_charge: CP.Rate,
+//       currency: CP.Currency.CurrencyCode,
+//       amount: "1",
+//       discount: CP.DiscountAmount,
+//       taxPerc: 0,
+//       tax_apply: CP.TaxAmount > 0 ? true : false,
+//       tax_amount: CP.TaxAmount,
+//       net_amount: CP.NetAmount,
+//       ex_rate: CP.ExchRateClient,
+//       local_amount: CP.LocalAmount,
+//       status: 1,
+//       approved_by: "",
+//       approved_date: "",
+//       partyType: partyType,
+//       InvoiceId: invoice?.id,
+//       SEJobId: savedJob.id,
+//     }
+
+//     const savedCP = await Charge_Head.create(ChargeP)
+
+//     if(CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice){
+
+//       let CAID = 0;
+
+//       const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
+
+//       if (accountMap.has(accountKey)) {
+//         CAID = accountMap.get(accountKey).id;
+//       } else {
+//         console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
+//       }
+
+//       let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
+
+//       if(!savedInvoice){
+//         let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
+//         let invoiceiType = "Job Invoice"
+//         let invoicePayType = "Recievable"
+//         let invoiceOperation = "AI"
+//         let partyCode = 0
+
+
+//         if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
+//         }else{
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
+//         }
+
+//         const account = await Child_Account.findOne({
+//           where: { id: partyCode.toString() },
+//         })
+
+//         let ipartyType = ''
+
+//         if(CP.CustomerId == job.ClientId){
+//           ipartyType = "client"
+//         }else if(CP.CustomerId == job.ConsigneeId){
+//           ipartyType = "client" 
+//         }else if(CP.CustomerId == job.ShipperId){
+//           ipartyType = "client"
+//         }else if(CP.CustomerId == job.OverseasAgentId){
+//           ipartyType = "agent"
+//         }else{
+//           ipartyType = "vendor"
+//         }
+
+//         let CA = null
+
+//         if(account){
+//           // console.log("Account Found:", account.title, account.id)
+//           CA = await Client_Associations.findOne({
+//             where: {
+//               ChildAccountId: account.id
+//             }
+//           })
+//         }
+
+//         let inv = {
+//           invoice_No: i.InvoiceNumber,
+//           invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           type: invoiceiType,
+//           payType: invoicePayType,
+//           status: '1',
+//           operation: invoiceOperation,
+//           currency: i.GL_Currencies.CurrencyCode,
+//           ex_rate: i.ExchangeRate,
+//           party_Id: CA?.ClientId,
+//           party_Name: account.title,
+//           paid: 0,
+//           recieved: 0,
+//           roundOff: '0',
+//           total: i.InvoiceAmount,
+//           approved: '1',
+//           companyId: companyId,
+//           partyType: ipartyType,
+//           note: i.Remarks,
+//           createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           SEJobId: savedJob.id,
+//           climaxId: i.Id
+//         }
+//         if(!inv.party_Id){
+//           console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
+//         }
+//         savedInvoice = await Invoice.create(inv, { silent: true })
+
+//         if(!invoice){
+//           savedCP.update({InvoiceId:savedInvoice.id})
+//         }
+
+//         let p
+//         let temp = await Client_Associations.findOne({
+//           where: {
+//             // CompanyId: companyId,
+//             ChildAccountId: CAID
+//           }
+//         })
+//         if(temp){
+//           p = await Clients.findOne({
+//             where: {
+//               id: temp.ClientId
+//             }
+//           })
+//         }
+
+//         let vch = await Vouchers.create({
+//           voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           voucher_Id: i.GL_Voucher.VoucherNo,
+//           type: i.GL_Voucher.GL_VoucherType.VoucherType,
+//           vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+//           currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+//           exRate: i.GL_Voucher.ExchangeRate,
+//           chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+//           chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+//           voucherNarration: i.GL_Voucher.Narration,
+//           costCenter: "KHI",
+//           onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           partyId: p.id,
+//           partyName: p.name,
+//           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           tranDate: i.GL_Voucher.VoucherDate,
+//           createdBy: i.GL_Voucher.AddLog,
+//           createdAt: i.GL_Voucher.AddOn,
+//           updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
+//           CompanyId: companyId,
+//           invoice_Id: savedInvoice.id
+//         }, { silent: true });
+
+//         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
+//           let Voucher_Head = {
+//             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+//             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+//             type: vh.DebitLC == 0 ? "credit" : "debit",
+//             narration: vh.NarrationVD,
+//             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+//             createdAt: vch.AddOn,
+//             updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+//             VoucherId: vch.id,
+//             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
+//           }
+//           await Voucher_Heads.create(Voucher_Head, { silent: true });
+//         }
+//       }
+//     }
+
+//     if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
+
+//       let CAID = 0;
+
+//       const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
+
+//       if (accountMap.has(accountKey)) {
+//         CAID = accountMap.get(accountKey).id;
+//       } else {
+//         console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
+//       }
+
+//       let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
+
+//       if(!savedInvoice){
+//         let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
+//         let invoiceiType = "Agent Invoice"
+//         let invoicePayType = "Recievable"
+//         let invoiceOperation = "AI"
+//         let partyCode = 0
+
+
+//         if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
+//         }else{
+//           partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
+//           // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
+//         }
+
+//         const account = await Child_Account.findOne({
+//           where: { code: partyCode.toString() },
+//         })
+
+//         let ipartyType = ''
+
+//         if(CP.VendorId == job.ClientId){
+//           ipartyType = "client"
+//         }else if(CP.VendorId == job.ConsigneeId){
+//           ipartyType = "client" 
+//         }else if(CP.VendorId == job.ShipperId){
+//           ipartyType = "client"
+//         }else if(CP.VendorId == job.OverseasAgentId){
+//           ipartyType = "agent"
+//         }else{
+//           ipartyType = "vendor"
+//         }
+
+//         let CA = null
+
+//         if(account){
+//           if(ipartyType == "client"){
+//             CA = await Client_Associations.findOne({
+//               where: {
+//                 ChildAccountId: account.id
+//               }
+//             })
+//           }else{
+//             CA = await Vendor_Associations.findOne({
+//               where: {
+//                 ChildAccountId: account.id
+//               }
+//             })
+//           }
+          
+//           if(!CA){
+//             CA = await Client_Associations.findOne({
+//               where: {
+//                 ChildAccountId: account.id
+//               }
+//             })
+//             if(!CA){
+//               CA = await Vendor_Associations.findOne({
+//               where: {
+//                 ChildAccountId: account.id
+//               }
+//             })
+//             }
+//           }
+//         }
+
+
+//         let inv = {
+//           invoice_No: i.InvoiceNumber,
+//           invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           type: invoiceiType,
+//           payType: invoicePayType,
+//           status: '1',
+//           operation: invoiceOperation,
+//           currency: i.GL_Currencies.CurrencyCode,
+//           ex_rate: i.ExchangeRate,
+//           party_Id: CA.ClientId,
+//           party_Name: account.title,
+//           paid: 0,
+//           recieved: 0,
+//           roundOff: '0',
+//           total: i.InvoiceAmount,
+//           approved: '1',
+//           companyId: companyId,
+//           partyType: ipartyType,
+//           note: i.Remarks,
+//           createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+//           SEJobId: savedJob.id,
+//           climaxId: i.Id
+//         }
+//         savedInvoice = await Invoice.create(inv, { silent: true })
+
+//         if(!invoice){
+//           savedCP.update({InvoiceId:savedInvoice.id})
+//         }
+
+//         let p
+//         if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
+//           // console.log("------Vendor------")
+//           let temp = await Vendor_Associations.findOne({
+//             where: {
+//               CompanyId: companyId,
+//               ChildAccountId: CAID
+//             }
+//           })
+//           if(temp){
+//             p = await Clients.findOne({
+//               where: {
+//                 id: temp.VendorId
+//               }
+//             })
+//           }
+//           if(!p){
+//             let temp = await Client_Associations.findOne({
+//               where: {
+//                 CompanyId: companyId,
+//                 ChildAccountId: CAID
+//               }
+//             })
+//             if(temp){
+//               p = await Clients.findOne({
+//                 where: {
+//                   id: temp.ClientId
+//                 }
+//               })
+//             }
+//           }
+//         }else{
+//           // console.log("------Client------")
+//           let temp = await Client_Associations.findOne({
+//             where: {
+//               CompanyId: companyId,
+//               ChildAccountId: CAID
+//             }
+//           })
+//           if(temp){
+//             p = await Clients.findOne({
+//               where: {
+//                 id: temp.ClientId
+//               }
+//             })
+//           }
+//           if(!p){
+//             let temp = await Vendor_Associations.findOne({
+//               where: {
+//                 CompanyId: companyId,
+//                 ChildAccountId: CAID
+//               }
+//             })
+//             if(temp){
+//               p = await Clients.findOne({
+//                 where: {
+//                   id: temp.VendorId
+//                 }
+//               })
+//             }
+//           }
+//         }
+//         if(!p){
+//           // console.log(party)
+//           console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
+//         }
+
+//         let vch = await Vouchers.create({
+//           voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+//           voucher_Id: i.GL_Voucher.VoucherNo,
+//           type: i.GL_Voucher.GL_VoucherType.VoucherType,
+//           vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+//           currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+//           exRate: i.GL_Voucher.ExchangeRate,
+//           chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+//           chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+//           voucherNarration: i.GL_Voucher.Narration,
+//           costCenter: "KHI",
+//           onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           partyId: p.id,
+//           partyName: p.name,
+//           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
+//           tranDate: i.GL_Voucher.VoucherDate,
+//           createdBy: i.GL_Voucher.AddLog,
+//           createdAt: i.GL_Voucher.AddOn,
+//           updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
+//           CompanyId: companyId,
+//           invoice_Id: savedInvoice.id
+//         }, { silent: true });
+
+//         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
+//           let Voucher_Head = {
+//             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+//             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+//             type: vh.DebitLC == 0 ? "credit" : "debit",
+//             narration: vh.NarrationVD,
+//             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+//             createdAt: vch.AddOn,
+//             updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+//             VoucherId: vch.id,
+//             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
+//           }
+//           await Voucher_Heads.create(Voucher_Head, { silent: true });
+//         }
+//       }
+//     }
+//   }
+// }
+
+const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
+  for (let CP of Charge) {
+
+    const charge = await Charges.findOne({ where: { code: CP.ChargesId } });
+
+    let party = await Clients.findOne({
+      where: { climaxId: CP.Customer.Id }
+    });
+
+    let invoice_id;
+    let invoiceType;
+    let partyType;
+    let invoice;
+
+    /* ---------------- Invoice Detection ---------------- */
+
+    if (CP.GL_JobInvoice_Charges) {
+      invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber;
+      invoiceType = "Job Invoice";
+      partyType = "client";
+      invoice = await Invoice.findOne({
+        where: {
+          climaxId: CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.Id.toString()
+        }
+      });
+    }
+    else if (CP.GL_AgentInvoice_Charges) {
+      invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber;
+      invoiceType = "Agent Invoice";
+      partyType = "agent";
+      invoice = await Invoice.findOne({
+        where: {
+          climaxId: CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()
+        }
+      });
+    }
+
+    /* ---------------- Charge Head ---------------- */
+
+    const ChargeP = {
+      charge: charge?.id,
+      particular: charge?.name,
+      invoice_id,
+      description: CP.Description,
+      name: CP.Customer.PartyName,
+      partyId: party.id,
+      invoiceType,
+      type: "Recievable",
+      basis: CP.Charges.PerUnitFixedId == 1 ? "Per Unit" : "Per Shipment",
+      pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
+      size_type: CP.EquipCode,
+      dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
+      qty: CP.Quantity,
+      rate_charge: CP.Rate,
+      currency: CP.Currency.CurrencyCode,
+      amount: "1",
+      discount: CP.DiscountAmount,
+      taxPerc: 0,
+      tax_apply: CP.TaxAmount > 0,
+      tax_amount: CP.TaxAmount,
+      net_amount: CP.NetAmount,
+      ex_rate: CP.ExchRateClient,
+      local_amount: CP.LocalAmount,
+      status: 1,
+      approved_by: "",
+      approved_date: "",
+      partyType,
+      InvoiceId: invoice?.id,
+      SEJobId: savedJob.id
+    };
+
+    const savedCP = await Charge_Head.create(ChargeP);
+
+    /* ======================================================
+       JOB INVOICE (RECEIVABLE)
+    ====================================================== */
+
+    if (CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice) {
+
+      const i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice;
+
+      const accountKey =
+        i.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName;
+
+      const CAID = accountMap.get(accountKey)?.id;
+
+      let savedInvoice = await Invoice.findOne({
+        where: { climaxId: i.Id.toString() }
+      });
+
+      if (!savedInvoice) {
+
+        const account = await Child_Account.findOne({
+          where: {
+            id: i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId.toString()
+          }
+        });
+
+        const CA = account
+          ? await Client_Associations.findOne({
+              where: { ChildAccountId: account.id }
+            })
+          : null;
+
+        const inv = {
+          invoice_No: i.InvoiceNumber,
+          invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          type: "Job Invoice",
+          payType: "Recievable",
+          status: "1",
+          operation: "AI",
+          currency: i.GL_Currencies.CurrencyCode,
+          ex_rate: i.ExchangeRate,
+          party_Id: CA?.ClientId,
+          party_Name: account?.title,
+          paid: 0,
+          recieved: 0,
+          roundOff: "0",
+          total: i.InvoiceAmount,
+          approved: "1",
+          companyId,
+          partyType: "client",
+          note: i.Remarks,
+          createdAt: moment(i.invoiceDate),
+          updatedAt: moment(i.invoiceDate),
+          SEJobId: savedJob.id,
+          climaxId: i.Id
+        };
+
+        savedInvoice = await Invoice.create(inv, { silent: true });
+
+        if (!invoice) {
+          await savedCP.update({ InvoiceId: savedInvoice.id });
+        }
+
+        const temp = CAID
+          ? await Client_Associations.findOne({
+              where: { ChildAccountId: CAID }
+            })
+          : null;
+
+        const p = temp
+          ? await Clients.findOne({ where: { id: temp.ClientId } })
+          : null;
+
+        const vch = await Vouchers.create({
+          voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
+          voucher_Id: i.GL_Voucher.VoucherNo,
+          type: i.GL_Voucher.GL_VoucherType.VoucherType,
+          vType: i.GL_Voucher.GL_VoucherType.TypeCode,
+          currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
+          exRate: i.GL_Voucher.ExchangeRate,
+          chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
+          chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
+          voucherNarration: i.GL_Voucher.Narration,
+          costCenter: "KHI",
+          onAccount: "client",
+          partyId: p?.id,
+          partyName: p?.name,
+          partyType: "client",
+          tranDate: i.GL_Voucher.VoucherDate,
+          createdBy: i.GL_Voucher.AddLog,
+          createdAt: i.GL_Voucher.AddOn,
+          updatedAt: i.GL_Voucher.EditOn ?? i.GL_Voucher.AddOn,
+          CompanyId: companyId,
+          invoice_Id: savedInvoice.id
+        }, { silent: true });
+
+        for (let vh of i.GL_Voucher.GL_Voucher_Detail) {
+          await Voucher_Heads.create({
+            defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
+            amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
+            type: vh.DebitLC == 0 ? "credit" : "debit",
+            narration: vh.NarrationVD,
+            accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
+            createdAt: vch.createdAt,
+            updatedAt: vch.updatedAt,
+            VoucherId: vch.id,
+            ChildAccountId: accountMap.get(vh.GL_COA.AccountName)?.id
+          }, { silent: true });
+        }
+      }
+    }
+  }
+};
+
 
 routes.post("/UploadAEJobs", async (req, res) => {
   try{
@@ -4062,708 +2935,11 @@ routes.post("/UploadAEJobs", async (req, res) => {
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
       if(job.SeaExportJob_ChargesPayb){
-        for(let CP of job.SeaExportJob_ChargesPayb){
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
-            invoiceType = "Job Bill"
-            partyType = "vendor"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-          }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Vendor.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Payble",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: CP.Rate,
-            currency: CP.Currency.CurrencyCode,
-            amount: "1",
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateLine,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "Job Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "AE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-              // console.log("Party Code:", partyCode)
-              const account = await Child_Account.findOne({
-                where: { id: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                // console.log("Account Found:", account.title, account.id)
-                CA = await Client_Associations.findOne({
-                  where: {
-                    ChildAccountId: account.id
-                  }
-                })
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: CA.ClientId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              let temp = await Client_Associations.findOne({
-                where: {
-                  // CompanyId: companyId,
-                  ChildAccountId: CAID
-                }
-              })
-              if(temp){
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
-                  }
-                })
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "AE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { id: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                CA = await Client_Associations.findOne({
-                  where: {
-                    ChildAccountId: account.id
-                  }
-                })
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              let temp = await Client_Associations.findOne({
-                where: {
-                  // CompanyId: companyId,
-                  ChildAccountId: CAID
-                }
-              })
-              if(temp){
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
-                  }
-                })
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesPayb(job.SeaExportJob_ChargesPayb, job, savedJob, accountMap, companyId)
       }
 
       if(job.SeaExportJob_ChargesRecv){
-        let i = 0
-        for(let CP of job.SeaExportJob_ChargesRecv){
-          // console.log(i)
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
-            invoiceType = "Job Invoice"
-            partyType = "client"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.Id.toString()}})
-          }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.Id.toString()}})
-            
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Customer.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Recievable",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: CP.Rate,
-            currency: CP.Currency.CurrencyCode,
-            amount: "1",
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateClient,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "Job Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "AE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { id: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.CustomerId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.CustomerId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                CA = await Client_Associations.findOne({
-                  where: {
-                    ChildAccountId: account.id
-                  }
-                })
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: CA?.ClientId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              if(!inv.party_Id){
-                console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              let temp = await Client_Associations.findOne({
-                where: {
-                  // CompanyId: companyId,
-                  ChildAccountId: CAID
-                }
-              })
-              if(temp){
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
-                  }
-                })
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "AE"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { id: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                CA = await Client_Associations.findOne({
-                  where: {
-                    ChildAccountId: account.id
-                  }
-                })
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              let temp = await Client_Associations.findOne({
-                where: {
-                  // CompanyId: companyId,
-                  ChildAccountId: CAID
-                }
-              })
-              if(temp){
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.ClientId
-                  }
-                })
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
 
@@ -4982,1050 +3158,11 @@ routes.post("/UploadAIJobs", async (req, res) => {
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
       if(job.SeaExportJob_ChargesPayb){
-        for(let CP of job.SeaExportJob_ChargesPayb){
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.VendorId}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobBill_Charges){
-            invoice_id = CP.GL_JobBill_Charges?.JobBill?.Invoice?.InvoiceNumber
-            invoiceType = "Job Bill"
-            partyType = "vendor"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-          }else if(CP.GL_AgentInvoice_Charges){
-            invoice_id = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}}) 
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Vendor.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Payble",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: CP.Rate,
-            currency: CP.Currency.CurrencyCode,
-            amount: "1",
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateLine,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobBill_Charges.JobBill.Invoice
-              let invoiceiType = "Job Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "AI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Bill"
-              let invoicePayType = "Payble"
-              let invoiceOperation = "AI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                temp?
-                p = await Clients.findOne({
-                  where: {
-                    id: temp.VendorId
-                  }
-                }):null
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  temp?
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  }):null
-                }
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesPayb(job.SeaExportJob_ChargesPayb, job, savedJob, accountMap, companyId)
       }
 
       if(job.SeaExportJob_ChargesRecv){
-        let i = 0
-        for(let CP of job.SeaExportJob_ChargesRecv){
-          // console.log(i)
-          const charge = await Charges.findOne({where:{code:CP.ChargesId}})
-          let party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          if(!party){
-            party = await Clients.findOne({where:{climaxId:CP.Customer.Id}})
-          }
-          let invoice_id
-          let invoiceType
-          let partyType
-          let invoice
-          if(CP.GL_JobInvoice_Charges){
-            invoice_id = CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice?.InvoiceNumber
-            invoiceType = "Job Invoice"
-            partyType = "client"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-          }else if(CP.GL_Agent_Invoice_Charges){
-            invoice_id = CP.GL_Agent_Invoice_Charges?.Agent_Invoice?.Invoice?.InvoiceNumber
-            invoiceType = "Agent Invoice"
-            partyType = "agent"
-            invoice = await Invoice.findOne({where:{climaxId:CP.GL_Agent_Invoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-            
-          }
-          let ChargeP = {
-            charge: charge?.id,
-            particular: charge?.name,
-            invoice_id: invoice_id,
-            description: CP.Description,
-            name: CP.Customer.PartyName,
-            partyId: party.id,
-            invoiceType: invoiceType,
-            type: "Recievable",
-            basis: CP.Charges.PerUnitFixedId = 1 ? "Per Unit" : "Per Shipment",
-            pp_cc: CP.PPCCId == 1 ? "PP" : "CC",
-            size_type: CP.EquipCode,
-            dg_type: job.DGNonDGId == 1 ? "DG" : "non-DG",
-            qty: CP.Quantity,
-            rate_charge: CP.Rate,
-            currency: CP.Currency.CurrencyCode,
-            amount: "1",
-            discount: CP.DiscountAmount,
-            taxPerc: 0,
-            tax_apply: CP.TaxAmount > 0 ? true : false,
-            tax_amount: CP.TaxAmount,
-            net_amount: CP.NetAmount,
-            ex_rate: CP.ExchRateClient,
-            local_amount: CP.LocalAmount,
-            status: 1,
-            approved_by: "",
-            approved_date: "",
-            partyType: partyType,
-            InvoiceId: invoice?.id,
-            SEJobId: savedJob.id,
-          }
-  
-          const savedCP = await Charge_Head.create(ChargeP)
-
-          if(CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobInvoice_Charges.JobInvoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice
-              let invoiceiType = "Job Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "AI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.CustomerId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.CustomerId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.CustomerId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                      where: {
-                        ChildAccountId: account.id
-                      }
-                    })
-                  }
-                }
-              }
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: CA?.ClientId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              if(!inv.party_Id){
-                console.log(i.InvoiceNumber, ipartyType, inv.party_Id)
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-
-          if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
-
-            let CAID = 0;
-
-            const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
-            if (accountMap.has(accountKey)) {
-              CAID = accountMap.get(accountKey).id;
-            } else {
-              console.warn(`⚠️ No matching account for: ${vh.GL_COA?.AccountName}`);
-            }
-
-            let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
-
-            if(!savedInvoice){
-              let i = CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice
-              let invoiceiType = "Agent Invoice"
-              let invoicePayType = "Recievable"
-              let invoiceOperation = "AI"
-              let partyCode = 0
-  
-      
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("RECEIVABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("ASSETS") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[0].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName
-              }else{
-                partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
-                // partyName = i.GL_Voucher.GL_Voucher_Detail[1].GL_COA.AccountName
-              }
-  
-              const account = await Child_Account.findOne({
-                where: { code: partyCode.toString() },
-              })
-  
-              let ipartyType = ''
-  
-              if(CP.VendorId == job.ClientId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.ConsigneeId){
-               ipartyType = "client" 
-              }else if(CP.VendorId == job.ShipperId){
-                ipartyType = "client"
-              }else if(CP.VendorId == job.OverseasAgentId){
-                ipartyType = "agent"
-              }else{
-                ipartyType = "vendor"
-              }
-
-              let CA = null
-
-              if(account){
-                if(ipartyType == "client"){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }else{
-                  CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                }
-                
-                if(!CA){
-                  CA = await Client_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  if(!CA){
-                    CA = await Vendor_Associations.findOne({
-                    where: {
-                      ChildAccountId: account.id
-                    }
-                  })
-                  }
-                }
-              }
-  
-  
-              let inv = {
-                invoice_No: i.InvoiceNumber,
-                invoice_Id: i.InvoiceNumber.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                type: invoiceiType,
-                payType: invoicePayType,
-                status: '1',
-                operation: invoiceOperation,
-                currency: i.GL_Currencies.CurrencyCode,
-                ex_rate: i.ExchangeRate,
-                party_Id: ipartyType == "client" ? CA.ClientId : CA.VendorId,
-                party_Name: account.title,
-                paid: 0,
-                recieved: 0,
-                roundOff: '0',
-                total: i.InvoiceAmount,
-                approved: '1',
-                companyId: companyId,
-                partyType: ipartyType,
-                note: i.Remarks,
-                createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-                SEJobId: savedJob.id,
-                climaxId: i.Id
-              }
-              savedInvoice = await Invoice.create(inv, { silent: true })
-
-              if(!invoice){
-                savedCP.update({InvoiceId:savedInvoice.id})
-              }
-
-              let p
-              if(i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES") || i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY")){
-                // console.log("------Vendor------")
-                let temp = await Vendor_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.VendorId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Client_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.ClientId
-                      }
-                    })
-                  }
-                }
-              }else{
-                // console.log("------Client------")
-                let temp = await Client_Associations.findOne({
-                  where: {
-                    CompanyId: companyId,
-                    ChildAccountId: CAID
-                  }
-                })
-                if(temp){
-                  p = await Clients.findOne({
-                    where: {
-                      id: temp.ClientId
-                    }
-                  })
-                }
-                if(!p){
-                  let temp = await Vendor_Associations.findOne({
-                    where: {
-                      CompanyId: companyId,
-                      ChildAccountId: CAID
-                    }
-                  })
-                  if(temp){
-                    p = await Clients.findOne({
-                      where: {
-                        id: temp.VendorId
-                      }
-                    })
-                  }
-                }
-              }
-              if(!p){
-                // console.log(party)
-                console.warn(`⚠️ No matching party for: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.AccountName} CAID: ${CAID} CompanyId: ${companyId} Parent: ${i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName}`);
-              }
-
-              let vch = await Vouchers.create({
-                voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, ""),
-                voucher_Id: i.GL_Voucher.VoucherNo,
-                type: i.GL_Voucher.GL_VoucherType.VoucherType,
-                vType: i.GL_Voucher.GL_VoucherType.TypeCode,
-                currency: i.GL_Voucher.GL_Currencies?.CurrencyCode ?? "PKR",
-                exRate: i.GL_Voucher.ExchangeRate,
-                chequeNo: i.GL_Voucher.GL_Voucher_Detail[0].ChequeNumber,
-                chequeDate: i.GL_Voucher.GL_Voucher_Detail[0].ChequeDate,
-                voucherNarration: i.GL_Voucher.Narration,
-                costCenter: "KHI",
-                onAccount: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                partyId: p.id,
-                partyName: p.name,
-                partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
-                tranDate: i.GL_Voucher.VoucherDate,
-                createdBy: i.GL_Voucher.AddLog,
-                createdAt: i.GL_Voucher.AddOn,
-                updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
-                CompanyId: companyId,
-                invoice_Id: savedInvoice.id
-              }, { silent: true });
-  
-              for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-                let Voucher_Head = {
-                  defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
-                  amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
-                  type: vh.DebitLC == 0 ? "credit" : "debit",
-                  narration: vh.NarrationVD,
-                  accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-                  createdAt: vch.AddOn,
-                  updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
-                  VoucherId: vch.id,
-                  ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
-                }
-                await Voucher_Heads.create(Voucher_Head, { silent: true });
-              }
-            }
-          }
-        }
+        await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
 
