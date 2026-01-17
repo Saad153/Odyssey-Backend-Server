@@ -1698,6 +1698,341 @@ routes.post("/importI", async (req, res) => {
   }
 });
 
+routes.get("/getDirectJobList", async (req, res) => {
+  try {
+    let { page = 1, pageSize = 10, search = "" } = req.query;
+
+    page = Number(page);
+    pageSize = Number(pageSize);
+
+    const offset = (page - 1) * pageSize;
+    const limit = pageSize;
+
+    const where = {};
+
+    if (search.trim()) {
+      const like = { [Op.iLike]: `%${search}%` };
+
+      // Use Sequelize.where + cast for ENUM search, safe for Postgres
+      where[Op.or] = [
+        { Entry_No: like },
+        { Reference_No: like },
+        { Cheque_No: like },
+        Sequelize.where(Sequelize.cast(Sequelize.col("Operation"), "text"), like),
+        { Type: like },
+      ];
+    }
+
+    const result = await Direct_Job.findAndCountAll({
+      where,
+      include: [
+        {
+          model: Direct_Job_Association,
+          as: "Associations",
+          include: [
+            { model: SE_Job, as: "Job" },
+            {
+              model: Vouchers,
+              as: "Voucher",
+              include: [{ model: Voucher_Heads }]
+            }
+          ]
+        }
+      ],
+      limit,
+      offset,
+      order: [["updatedAt", "DESC"]]
+    });
+
+    res.json({
+      status: "success",
+      total: result.count,
+      result: result.rows
+    });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: "error", error: e.message });
+  }
+});
+
+routes.get("/getJobData", async (req, res) => {
+  try {
+
+    const result = await Direct_Job_Association.findAll({
+      where: {
+        Job_Id: req.headers.id
+      },
+      include: [{
+        model: Vouchers,
+        as: 'Voucher',
+        include: [{ model: Voucher_Heads }]
+      },
+      {
+        model: Direct_Job,
+        as: 'DirectJob'
+      }
+    ],
+      order: [["updatedAt", "DESC"]]
+    });
+
+    res.json({
+      status: "success",
+      result: result
+    });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: "error", error: e.message });
+  }
+});
+
+routes.get("/getDirectJob", async ( req, res ) => {
+  try{
+    const result = await Direct_Job.findOne({
+      where: {
+        id: req.headers.id
+      },
+      include: [
+        {
+          model: Direct_Job_Association,
+          as: "Associations",
+          include: [
+            { model: SE_Job, as: "Job" },
+            {
+              model: Vouchers,
+              as: "Voucher",
+              include: [{ model: Voucher_Heads }]
+            }
+          ]
+        }
+      ]
+    })
+    res.json({status: 'success', result: result});
+  }catch(e){
+    console.error("Error", e)
+    res.status(500).json({ status: "error", result: e})
+  }
+});
+
+routes.post("/deleteDirectJob", async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    console.log("HEADER ID:", req.headers.id);
+
+    const job = await Direct_Job.findOne({
+      where: { id: req.headers.id },
+      include: [
+        {
+          model: Direct_Job_Association,
+          as: "Associations",
+          include: [
+            { model: SE_Job, as: "Job" }, // keep this
+            {
+              model: Vouchers,
+              as: "Voucher",
+              include: [{ model: Voucher_Heads }]
+            }
+          ]
+        }
+      ],
+      transaction: t
+    });
+
+    if (!job) {
+      await t.rollback();
+      return res.status(404).json({ status: "error", message: "Job not found" });
+    }
+
+    console.log("FOUND JOB:", job.id);
+    console.log("ASSOCIATIONS:", job.Associations.length);
+
+    // 1️⃣ Delete all Direct_Job_Association rows first
+    const associationIds = job.Associations.map(a => a.id);
+    await Direct_Job_Association.destroy({
+      where: { id: associationIds },
+      transaction: t
+    });
+
+    // 2️⃣ Delete Voucher_Heads and Vouchers
+    for (const a of job.Associations) {
+      if (a.Voucher) {
+        await Voucher_Heads.destroy({
+          where: { VoucherId: a.Voucher.id },
+          transaction: t
+        });
+
+        await Vouchers.destroy({
+          where: { id: a.Voucher.id },
+          transaction: t
+        });
+      }
+    }
+
+    // 3️⃣ Delete the Direct Job itself
+    await Direct_Job.destroy({
+      where: { id: job.id },
+      transaction: t
+    });
+
+    await t.commit();
+
+    return res.json({ status: "success" });
+
+  } catch (e) {
+    console.error("Error deleting direct job:", e);
+    await t.rollback();
+    return res.status(500).json({ status: "error", result: e });
+  }
+});
+
+routes.post("/saveDirectJob", async (req, res) => {
+  try {
+    const { direct_Job, direct_Job_Association } = req.body;
+
+    let dJob, Voucher;
+
+    await sequelize.transaction(async (t) => {
+      // 1️⃣ Determine if this is an update or create
+      const isUpdate = !!direct_Job.id;
+
+      if (isUpdate) {
+        // 🔹 UPDATE
+        dJob = await Direct_Job.findOne({ where: { id: direct_Job.id }, transaction: t });
+        if (!dJob) throw new Error("Direct Job not found");
+
+        await dJob.update(direct_Job, { transaction: t });
+
+        Voucher = await Vouchers.findOne({ where: { id: direct_Job.Voucher_Id }, transaction: t });
+        if (!Voucher) throw new Error("Voucher not found");
+
+        await Voucher.update({
+          type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
+          currency: direct_Job.Currency,
+          exRate: direct_Job.Ex_Rate,
+          chequeNo: direct_Job.Cheque_No,
+          chequeDate: direct_Job.Cheque_Date,
+          voucherNarration: direct_Job.Narration,
+          drawn_At: direct_Job.Drawn_At,
+          partyId: direct_Job.Paid_To,
+          partyName: direct_Job.Paid_Name,
+          tranDate: direct_Job.Entry_Date,
+          createdBy: direct_Job.Add_By,
+        }, { transaction: t });
+
+        // Remove old associations & voucher heads
+        await Direct_Job_Association.destroy({ where: { Direct_Job_Id: dJob.id }, transaction: t });
+        await Voucher_Heads.destroy({ where: { VoucherId: Voucher.id }, transaction: t });
+
+      } else {
+        // 🔹 CREATE
+
+        // Generate Entry_No
+        const jobNumber = await Direct_Job.findOne({
+          where: { Type: direct_Job.Type },
+          order: [['Entry_No', 'DESC']],
+          attributes: ['Entry_No'],
+          transaction: t
+        });
+
+        direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`;
+
+        dJob = await Direct_Job.create(direct_Job, { transaction: t });
+
+        // Determine voucher type
+        let vouchervType;
+        if(direct_Job.Type == 'revenue'){
+          vouchervType = direct_Job.Tran_Mode == 'bank' ? 'BRV' : direct_Job.Tran_Mode == 'cash' ? 'CRV' : 'DN';
+        } else {
+          vouchervType = direct_Job.Tran_Mode == 'bank' ? 'BPV' : direct_Job.Tran_Mode == 'cash' ? 'CPV' : 'CN';
+        }
+
+        const voucher = await Vouchers.findOne({
+          where: { vType: vouchervType, CompanyId: direct_Job.companyId },
+          order: [['voucher_No', 'DESC']],
+          attributes: ['voucher_No'],
+          transaction: t
+        });
+
+        Voucher = await Vouchers.create({
+          voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
+          voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
+          type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
+          vType: vouchervType,
+          currency: direct_Job.Currency,
+          exRate: direct_Job.Ex_Rate,
+          chequeNo: direct_Job.Cheque_No,
+          chequeDate: direct_Job.Cheque_Date,
+          voucherNarration: direct_Job.Narration,
+          drawn_At: direct_Job.Drawn_At,
+          costCenter: 'KHI',
+          onAccount: direct_Job.Type == 'revenue' ? 'client' : 'vendor',
+          partyId: direct_Job.Paid_To,
+          partyName: direct_Job.Paid_Name,
+          partyType: direct_Job.Type == 'revenue' ? 'client' : 'vendor',
+          tranDate: direct_Job.Entry_Date,
+          createdBy: direct_Job.Add_By,
+          CompanyId: direct_Job.companyId
+        }, { transaction: t });
+      }
+
+      // 🔹 Create associations & voucher heads
+      let amount = 0, dAmount = 0;
+
+      for (let DA of direct_Job_Association) {
+        await Direct_Job_Association.create({
+          ...DA,
+          Voucher_Id: Voucher.id,
+          Direct_Job_Id: dJob.id,
+        }, { transaction: t });
+
+        const job = await SE_Job.findOne({ where: { id: DA.Job_Id }, attributes: ['subType'], transaction: t });
+
+        let Account;
+        if(job.subType == 'LCL'){
+          Account = direct_Job.Type == 'revenue' ? 'LCL FREIGHT INCOME' : 'LCL FREIGHT EXP';
+        } else {
+          Account = direct_Job.Type == 'revenue' ? 'FCL FREIGHT INCOME' : 'FCL FREIGHT EXPENSE';
+        }
+
+        const onAccount = await Child_Account.findOne({ where: { title: Account }, attributes: ['id'], transaction: t });
+
+        amount += direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount;
+        dAmount += DA.Amount * DA.Ex_Rate;
+
+        await Voucher_Heads.create({
+          defaultAmount: DA.Amount * DA.Ex_Rate,
+          amount: direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount,
+          type: direct_Job.Type == 'revenue' ? 'credit' : 'debit',
+          narration: DA.Description,
+          accountType: direct_Job.Type == 'revenue' ? 'Client' : 'Vendor',
+          VoucherId: Voucher.id,
+          ChildAccountId: onAccount.id,
+        }, { transaction: t });
+      }
+
+      // Main voucher head
+      await Voucher_Heads.create({
+        defaultAmount: dAmount,
+        amount: amount,
+        type: direct_Job.Type != 'revenue' ? 'credit' : 'debit',
+        narration: direct_Job.Narration,
+        accountType: direct_Job.Type != 'revenue' ? 'Client' : 'Vendor',
+        VoucherId: Voucher.id,
+        ChildAccountId: direct_Job.Account_No,
+      }, { transaction: t });
+
+    });
+
+    res.json({ status: "success", result: { Entry_Number: dJob.Entry_No, Voucher_Number: Voucher.voucher_Id, id: dJob.id } });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: "error", error: e.message });
+  }
+});
+
+
 routes.post("/createDirectJob", async (req, res) => {
   try {
     let dJob
@@ -1754,11 +2089,13 @@ routes.post("/createDirectJob", async (req, res) => {
         CompanyId: direct_Job.companyId
       }, { transaction: t });
 
+      let amount = 0
+      let dAmount = 0
       for(let DA of direct_Job_Association){
         await Direct_Job_Association.create({
           ...DA,
           Voucher_Id: Voucher.id,
-          Direct_Job_Id: dJob.id
+          Direct_Job_Id: dJob.id,
         }, { transaction: t });
 
         const job = await SE_Job.findOne({
@@ -1768,7 +2105,6 @@ routes.post("/createDirectJob", async (req, res) => {
           attributes: [ 'subType' ]
         });
         let Account
-        let DC = direct_Job.Type == 'revenue' ? 'credit' : 'debit'
         if(job.subType == 'LCL'){
           Account = direct_Job.Type == 'revenue' ? 'LCL FREIGHT INCOME' : 'LCL FREIGHT EXP'
         }else{
@@ -1780,29 +2116,31 @@ routes.post("/createDirectJob", async (req, res) => {
           },
           attributes: [ 'id' ]
         });
+        amount += direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount
+        dAmount += DA.Amount * DA.Ex_Rate
         await Voucher_Heads.create({
           defaultAmount: DA.Amount * DA.Ex_Rate,
           amount: direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount,
-          type: DC,
+          type: direct_Job.Type == 'revenue' ? 'credit' : 'debit',
           narration: DA.Description,
           accountType: direct_Job.Type == 'revenue' ? 'Client' : 'Vendor',
           VoucherId: Voucher.id,
           ChildAccountId: onAccount.id,
         }, { transaction: t })
-        await Voucher_Heads.create({
-          defaultAmount: DA.Amount * DA.Ex_Rate,
-          amount: direct_Job.Currency == 'PKR' ? DA.Amount * DA.Ex_Rate : DA.Amount,
-          type: DC,
-          narration: DA.Description,
-          accountType: direct_Job.Type != 'revenue' ? 'Client' : 'Vendor',
-          VoucherId: Voucher.id,
-          ChildAccountId: direct_Job.Account_No,
-        }, { transaction: t })
       }
+      await Voucher_Heads.create({
+        defaultAmount: dAmount,
+        amount: amount,
+        type: direct_Job.Type != 'revenue' ? 'credit' : 'debit',
+        narration: direct_Job.Narration,
+        accountType: direct_Job.Type != 'revenue' ? 'Client' : 'Vendor',
+        VoucherId: Voucher.id,
+        ChildAccountId: direct_Job.Account_No,
+      }, { transaction: t })
     });
 
     // ✔ Only send response AFTER transaction completes
-    res.json({ status: "success", result: { Entry_Number: dJob.Entry_No, Voucher_Number: Voucher.voucher_Id } });
+    res.json({ status: "success", result: { Entry_Number: dJob.Entry_No, Voucher_Number: Voucher.voucher_Id, id: dJob.id } });
 
   } catch (e) {
     console.error(e);

@@ -31,7 +31,7 @@ Voucher_Heads.belongsTo(Child_Account);
 
 Employees.hasMany(Office_Vouchers, {
     foreignKey:{
-        type: DataTypes.INTEGER,
+        type: DataTypes.UUID,
         allowNull:false
     }
 });

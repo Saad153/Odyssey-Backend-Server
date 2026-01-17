@@ -91,7 +91,7 @@ module.exports = (sequelize, DataTypes) => {
 
       Paid_To: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: true
       }
     },
     {
@@ -111,6 +111,11 @@ module.exports = (sequelize, DataTypes) => {
     Direct_Job.belongsTo(models.Child_Account, {
       foreignKey: "Paid_To",
       as: "PaidTo"
+    });
+
+    Direct_Job.hasMany(models.Direct_Job_Association, {
+      foreignKey: "Direct_Job_Id",
+      as: "Associations"
     });
   };
 

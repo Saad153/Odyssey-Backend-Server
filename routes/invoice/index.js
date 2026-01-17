@@ -640,14 +640,25 @@ routes.get("/getHeadesNew", async(req, res) => {
       include: [
         {
           model: Invoice,
-          attributes: ['status', 'approved']
+          attributes: ['id', 'status', 'approved'],
+          include: {
+            model: Invoice_Transactions,
+            // include: {
+            //   model: Vouchers,
+            //   include: {
+            //     model: Voucher_Heads
+            //   }
+            // }
+          }
         }
       ],
       order: [['id', 'ASC']] // or 'DESC' if you want descending
     });
+    // console.log(result[0].dataValues.Invoice.dataValues.Invoice_Transactions[0].dataValues)
     res.json({status:'success', result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });

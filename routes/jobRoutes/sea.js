@@ -214,7 +214,7 @@ routes.get("/getValues", async(req, res) => {
     let tempChargeList = [];
     const charges = await Charges.findAll({});
     await charges.forEach((x) => {
-      tempChargeList.push({...x.dataValues, label:`(${x.dataValues.code}) ${x.dataValues.short}`, value:x.dataValues.code});
+      tempChargeList.push({...x.dataValues, label:`(${x.dataValues.code}) ${x.dataValues.short}`, value:x.dataValues.id});
     });
     // console.log(result.dataValues)
     let temp = result.filter(x => x.types.includes('Shipping Line'));

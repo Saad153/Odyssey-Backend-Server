@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "updatedAt": "2026-01-16T21:08:14.167Z",
+  "schema_knowledge": {
+    "public": {
+      "Access_Levels": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "AssignTasks": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Bls": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Charge_Heads": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Charges": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Child_Accounts": {
+        "columns": [
+          "id",
+          "title",
+          "editable",
+          "subCategory",
+          "code",
+          "createdAt",
+          "updatedAt",
+          "ChildAccountId"
+        ],
+        "lastSeen": "2026-01-16T21:07:48.102Z"
+      },
+      "Client_Associations": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Clients": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Commodities": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Companies": {
+        "columns": [
+          "id",
+          "title",
+          "short",
+          "createdAt",
+          "updatedAt"
+        ],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Container_Infos": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Delivery_Orders": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Dimensions": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Direct_Job_Association": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Direct_Jobs": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Employees": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Invoice_Transactions": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Invoices": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Item_Details": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Job_notes": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Loading_Programs": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Manifest_Jobs": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Manifests": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Notifications": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Office_Vouchers": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Ports": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "SE_Equipments": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "SE_Jobs": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Stamps": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Sub_Tasks": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Task_Logs": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Tasks": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Transactions": {
+        "columns": [
+          "id",
+          "title",
+          "editable",
+          "subCategory",
+          "code",
+          "createdAt",
+          "updatedAt"
+        ],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Vessels": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "Voucher_Heads": {
+        "columns": [
+          "id",
+          "defaultAmount",
+          "amount",
+          "type",
+          "narration",
+          "settlement",
+          "accountType",
+          "createdAt",
+          "updatedAt",
+          "VoucherId",
+          "ChildAccountId"
+        ],
+        "lastSeen": "2026-01-16T21:05:01.859Z"
+      },
+      "Vouchers": {
+        "columns": [
+          "id",
+          "voucher_No",
+          "voucher_Id",
+          "type",
+          "vType",
+          "currency",
+          "exRate",
+          "settleExRate",
+          "chequeNo",
+          "chequeDate",
+          "payTo",
+          "voucherNarration",
+          "costCenter",
+          "invoice_Voucher",
+          "invoice_Id",
+          "invoices",
+          "drawnAt",
+          "onAccount",
+          "partyId",
+          "partyName",
+          "partyType",
+          "tranDate",
+          "subType",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "CompanyId"
+        ],
+        "lastSeen": "2026-01-16T21:05:01.851Z"
+      },
+      "Voyages": {
+        "columns": [],
+        "lastSeen": "2026-01-16T21:01:14.493Z"
+      },
+      "*": {
+        "columns": [],
+        "lastSeen": "2026-01-16T17:44:53.835Z"
+      }
+    }
+  },
+  "relationships": {
+    "public.Voucher_Heads": [
+      {
+        "column": "ChildAccountId",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "Child_Accounts",
+        "foreign_column_name": "id"
+      },
+      {
+        "column": "VoucherId",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "Vouchers",
+        "foreign_column_name": "id"
+      }
+    ],
+    "public.Child_Accounts": [
+      {
+        "column": "ChildAccountId",
+        "foreign_table_schema": "public",
+        "foreign_table_name": "Child_Accounts",
+        "foreign_column_name": "id"
+      }
+    ]
+  },
+  "business_rules": {},
+  "user_preferences": {},
+  "synonyms": {},
+  "facts_learned": []
+}
