@@ -1756,6 +1756,37 @@ routes.get("/getDirectJobList", async (req, res) => {
   }
 });
 
+routes.get("/getJobData", async (req, res) => {
+  try {
+
+    const result = await Direct_Job_Association.findAll({
+      where: {
+        Job_Id: req.headers.id
+      },
+      include: [{
+        model: Vouchers,
+        as: 'Voucher',
+        include: [{ model: Voucher_Heads }]
+      },
+      {
+        model: Direct_Job,
+        as: 'DirectJob'
+      }
+    ],
+      order: [["updatedAt", "DESC"]]
+    });
+
+    res.json({
+      status: "success",
+      result: result
+    });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: "error", error: e.message });
+  }
+});
+
 routes.get("/getDirectJob", async ( req, res ) => {
   try{
     const result = await Direct_Job.findOne({
