@@ -1457,10 +1457,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
@@ -1743,10 +1740,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
@@ -1772,7 +1766,8 @@ const safeFindOne = async (model, id) => {
 };
 
 const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) => {
-  for(let CP of Charge){
+  try{
+    for(let CP of Charge){
     const charge = await Charges.findOne({where:{code:CP.ChargesId}})
     let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
     // if(!party){
@@ -2115,6 +2110,9 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
       }
     }
   }
+}catch(e){
+  console.log(e)
+}
 }
 
 // const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
@@ -2543,7 +2541,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
 // }
 
 const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
-  for (let CP of Charge) {
+  try{
+    for (let CP of Charge) {
 
     const charge = await Charges.findOne({ where: { code: CP.ChargesId } });
 
@@ -2726,6 +2725,10 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
       }
     }
   }
+}catch(e){
+  console.error("Error", e)
+  // res.status(500).json({ status: "error", result: e })
+}
 };
 
 
@@ -3150,10 +3153,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 

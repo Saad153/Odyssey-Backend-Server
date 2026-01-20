@@ -1660,9 +1660,7 @@ routes.post("/importI", async (req, res) => {
         tranDate: I.GL_Voucher.VoucherDate,
         createdBy: I.GL_Voucher.AddLog,
         createdAt: moment(I.GL_Voucher.AddOn),
-        updatedAt:
-          moment(I.GL_Voucher.EditOn) ||
-          moment(I.GL_Voucher.AddOn),
+        updatedAt: moment(I.GL_Voucher.AddOn),
         CompanyId: companyId,
         invoice_Id: savedInvoice.id
       }, { silent: true });
