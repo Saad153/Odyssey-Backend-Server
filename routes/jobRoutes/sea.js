@@ -2044,8 +2044,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           companyId: companyId,
           partyType: ipartyType,
           note: i.Remarks,
-          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          createdAt: moment(i.InvoiceDate),
+          updatedAt: moment(i.InvoiceDate),
           SEJobId: savedJob.id,
           climaxId: i.Id
         }
@@ -2087,7 +2087,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
           tranDate: i.GL_Voucher.VoucherDate,
           createdBy: i.GL_Voucher.AddLog,
-          createdAt: i.GL_Voucher.AddOn,
+          createdAt: moment(i.GL_Voucher.AddOn),
           updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
           CompanyId: companyId,
           invoice_Id: savedInvoice.id
@@ -2100,8 +2100,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
             type: vh.DebitLC == 0 ? "credit" : "debit",
             narration: vh.NarrationVD,
             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-            createdAt: vch.AddOn,
-            updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+            createdAt: vch.createdAt,
+            updatedAt: vch.updatedAt,
             VoucherId: vch.id,
             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
           }
@@ -2664,8 +2664,8 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
           companyId,
           partyType: "client",
           note: i.Remarks,
-          createdAt: moment(i.invoiceDate),
-          updatedAt: moment(i.invoiceDate),
+          createdAt: moment(i.InvoiceDate),
+          updatedAt: moment(i.InvoiceDate),
           SEJobId: savedJob.id,
           climaxId: i.Id
         };

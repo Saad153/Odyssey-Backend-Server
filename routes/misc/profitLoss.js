@@ -20,23 +20,21 @@ routes.get(`/${url}/job`, async(req, res) => {
     let obj = {};
     obj.approved ='true';
     // obj.companyId=req.headers.company;
-        // Apply different filters based on the company header value
-        if (req.headers.company === '4') {
-          obj.companyId = { [Op.in]: ['1', '3'] };
-        } else {
-          
-          obj.companyId = req.headers.company;
-          obj.subType = { [Op.in]:req.headers.subtype.split(",")};
-        }
-
-       obj.createdAt= {
+    // Apply different filters based on the company header value
+    if (req.headers.company === '4') {
+      obj.companyId = { [Op.in]: ['1', '3'] };
+    } else {
+      obj.companyId = req.headers.company;
+      obj.subType = { [Op.in]:req.headers.subtype.split(",")};
+    }
+    obj.createdAt= {
       [Op.gte]: moment(req.headers.from).toDate(),
       [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
     }
     req.headers.salesrepresentative?obj.salesRepresentatorId=req.headers.salesrepresentative:null;
     req.headers.client?obj.ClientId=req.headers.client:null;
     req.headers.overseasagent?obj.overseasAgentId=req.headers.overseasagent:null;
-    req.headers.jobtype?obj.operation=req.headers.jobtype.split(","):null;
+    req.headers.jobtype?obj.operation = { [Op.in]: req.headers.jobtype.split(",") }:null;
     console.log("Object", obj)
     const result = await SE_Job.findAll({
       attributes:['id','jobNo','fd', 'createdAt', 'jobType', 'operation', 'weight',
@@ -70,7 +68,7 @@ routes.get(`/${url}/job`, async(req, res) => {
         { model:Employees, as:'sales_representator', attributes:['name'] },
       ]
     });
-    console.log("Result", result)
+    console.log("Result", result.length)
     res.json({status:'success', result:result});
 
   }
