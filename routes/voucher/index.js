@@ -976,13 +976,13 @@ routes.post("/importVouchers", async (req, res) => {
   try {
     console.log("Length: ", req.body.records.length);
 
-    const accounts = await Child_Account.findAll({ include: Parent_Account });
+    const accounts = await Child_Account.findAll();
     const accountMap = new Map();
     accounts.forEach((a) => {
-      const companyId = a.Parent_Account?.CompanyId;
-      if (companyId) {
-        accountMap.set(`${a.title}-${companyId}`, { id: a.id, subCategory: a.subCategory });
-      }
+      // const companyId = a.Parent_Account?.CompanyId;
+      // if (companyId) {
+      // }
+      accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
     });
 
     const success = [];
@@ -993,7 +993,7 @@ routes.post("/importVouchers", async (req, res) => {
       try {
         const companyId = voucher.VoucherNo.includes("SNS") ? 1 : 3;
         let CAID = 0;
-        const accountKey = `${voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}-${companyId}`;
+        const accountKey = `${voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
         if (accountMap.has(accountKey)) {
           CAID = accountMap.get(accountKey).id;
         } else {
@@ -1005,28 +1005,28 @@ routes.post("/importVouchers", async (req, res) => {
           || voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LIABILITIES")
           || voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("LAIBILITY");
 
-        if (isPayable) {
-          let temp = await Vendor_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
-          party = temp ? await Vendors.findOne({ where: { id: temp.VendorId } }) : null;
-        } else {
-          let temp = await Client_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
+        // if (isPayable) {
+        //   let temp = await Vendor_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
+        //   party = temp ? await Vendors.findOne({ where: { id: temp.VendorId } }) : null;
+        // } else {
+        // }
+        // let temp = await Client_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
+        // party = temp ? await Clients.findOne({ where: { id: temp.ClientId } }) : null;
+
+        // if (!party) {
+        //   // console.warn(`⚠️ No matching party for: ${voucher.GL_Voucher_Detail[0].GL_COA.AccountName}`);
+        //   const isPayable = voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("PAYABLE")
+        //     || voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("LIABILITIES")
+        //     || voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("LAIBILITY");
+
+        //   if (isPayable) {
+        //     let temp = await Vendor_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
+        //     party = temp ? await Vendors.findOne({ where: { id: temp.VendorId } }) : null;
+        //   } else {
+        //   }
+          let temp = await Client_Associations.findOne({ where: { ChildAccountId: CAID } });
           party = temp ? await Clients.findOne({ where: { id: temp.ClientId } }) : null;
-        }
-
-        if (!party) {
-          // console.warn(`⚠️ No matching party for: ${voucher.GL_Voucher_Detail[0].GL_COA.AccountName}`);
-          const isPayable = voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("PAYABLE")
-            || voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("LIABILITIES")
-            || voucher.GL_Voucher_Detail[1].GL_COA.GL_COA.AccountName.includes("LAIBILITY");
-
-          if (isPayable) {
-            let temp = await Vendor_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
-            party = temp ? await Vendors.findOne({ where: { id: temp.VendorId } }) : null;
-          } else {
-            let temp = await Client_Associations.findOne({ where: { CompanyId: companyId, ChildAccountId: CAID } });
-            party = temp ? await Clients.findOne({ where: { id: temp.ClientId } }) : null;
-          }
-        }
+        // }
 
         if(!party){
           console.warn(`⚠️ No matching party for: ${voucher.GL_Voucher_Detail[1].GL_COA.AccountName}`);
@@ -1118,7 +1118,7 @@ routes.post("/importVouchers", async (req, res) => {
               createdAt: Voucher.createdAt,
               updatedAt: Voucher.updatedAt,
               VoucherId: Voucher.id,
-              ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}-${companyId}`)?.id,
+              ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`)?.id,
             },
             { transaction: t, silent: true }
           );
@@ -1660,9 +1660,7 @@ routes.post("/importI", async (req, res) => {
         tranDate: I.GL_Voucher.VoucherDate,
         createdBy: I.GL_Voucher.AddLog,
         createdAt: moment(I.GL_Voucher.AddOn),
-        updatedAt:
-          moment(I.GL_Voucher.EditOn) ||
-          moment(I.GL_Voucher.AddOn),
+        updatedAt: moment(I.GL_Voucher.AddOn),
         CompanyId: companyId,
         invoice_Id: savedInvoice.id
       }, { silent: true });

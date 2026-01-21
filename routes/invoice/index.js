@@ -730,26 +730,62 @@ routes.get("/getAllInvoiceData", async(req, res) => {
       vouchers.push(voucher.dataValues)
     }
 
+    // let heads = []
+    // console.log("party_id:", req.headers.party_id)
+    // for(let x of vouchers){
+    //   let party = await Client_Associations.findOne({
+    //     where:{ClientId:req.headers.party_id}
+    //   })
+    //   console.log("Client Id:", party.ChildAccountId)
+    //   const head = await Voucher_Heads.findAll({
+    //     where: {
+    //       VoucherId: x.id,
+    //       ChildAccountId: party.ChildAccountId,
+    //       narration: {
+    //         [Op.notLike]: '%Ex-Rate%'
+    //       }
+    //     }
+    //   });
+    //   head.forEach((y)=>{
+    //     heads.push(y.dataValues)
+    //   })
+    // }
+    
+    // console.log("party_id:", req.headers.party_id);
 
+    const heads = [];
 
-    let heads = []
-    for(let x of vouchers){
-      // let party = await Client_Associations.findOne({
-      //   where:{ClientId:req.headers.party_id}
-      // })
-      // console.log(party.id)
+    const rawPartyId = req.headers.party_id;
+    // Coerce to number if numeric, else keep as-is (depends on your schema)
+    const partyId = isNaN(Number(rawPartyId)) ? rawPartyId : Number(rawPartyId);
+
+    for (const x of vouchers) {
+      // Find association for this party (once per iteration; can be moved out if same for all vouchers)
+      const partyAssoc = await Client_Associations.findOne({
+        where: { ClientId: partyId },
+        attributes: ['ChildAccountId']
+      });
+
+      // Build a unique list of candidate ChildAccountIds to check
+      const candidateChildIds = Array.from(new Set(
+        [partyId, partyAssoc?.ChildAccountId].filter(Boolean)
+      ));
+
+      console.log("Candidate ChildAccountIds:", candidateChildIds);
+
       const head = await Voucher_Heads.findAll({
         where: {
           VoucherId: x.id,
-          ChildAccountId: req.headers.party_id,
-          narration: {
-            [Op.notLike]: '%Ex-Rate%'
-          }
+          ChildAccountId: { [Op.in]: candidateChildIds },
+          // If you’re on Postgres and want case-insensitive, use Op.notILike
+          narration: { [Op.notLike]: '%Ex-Rate%' }
+          // narration: { [Op.notILike]: '%Ex-Rate%' } // Postgres only
         }
       });
-      head.forEach((y)=>{
-        heads.push(y.dataValues)
-      })
+
+      head.forEach((y) => {
+        heads.push(y.dataValues);
+      });
     }
 
     res.json({status:'success', result:{InvTran, vouchers, heads}});
@@ -1378,7 +1414,7 @@ routes.get("/jobBalancing", async (req, res) => {
       invoiceObj.payType=req.headers.paytype
     }
     // party wise invoice/bill
-    account?invoiceObj.party_Id=account.ChildAccountId.toString():null
+    account?invoiceObj.party_Id=req.headers.party:null
     // Company wise invoice/bill
     if(req.headers.company=='4'){
       invoiceObj = {
@@ -1537,6 +1573,7 @@ routes.get("/jobBalancing", async (req, res) => {
 
 routes.get("/invoiceBalancing", async (req, res) => {
   try {
+    console.log("Headers:", req.headers);
     let invoiceObj = {
       createdAt: {
         [Op.gte]: moment(req.headers.from).toDate(),
@@ -1546,45 +1583,32 @@ routes.get("/invoiceBalancing", async (req, res) => {
         { type: { [Op.notIn]: ["Job Invoice", "Old Job Invoice", "Job Bill", "Old Job Bill"] } }
       ]
     };
-
     if (req.headers.paytype !== "All") {
       invoiceObj.payType = req.headers.paytype;
     }
-
     if (req.headers.company === "4") {
       invoiceObj.companyId = { [Op.in]: ["1", "3"] };
     } else if (req.headers.company) {
       invoiceObj.companyId = req.headers.company;
     }
-
-    let accountObj = {}; // Ensure it's always initialized
-    if (req.headers.company === "4") {
-      accountObj.CompanyId = { [Op.in]: ["1", "3"] };
-    } else if (req.headers.company) {
-      accountObj.CompanyId = req.headers.company;
-    }
-
-    console.log("AccountObj:", accountObj);
-
     let account = [];
     if (req.headers.overseasagent) {
-      account = await Vendor_Associations.findAll({
+      account = await Client_Associations.findAll({
         where: {
-          ...accountObj,
-          VendorId: req.headers.overseasagent,
+          ClientId: req.headers.overseasagent,
         },
       });
     }
-
     console.log("Account:", account);
-
-    // Extract ChildAccountId(s) from the fetched accounts
     if (account.length > 0) {
-      invoiceObj.party_Id = account.map(a => a.ChildAccountId);
+      invoiceObj.party_Id = account.map(a => a.ChildAccountId.toString());
     }
-
+    console.log("InvoiceObj:", invoiceObj);
     const result = await Invoice.findAll({
-      where: invoiceObj,
+      // where: invoiceObj,
+      where: {
+        party_Id: req.headers.overseasagent
+      },
       attributes: [
         "id", "invoice_No", "payType", "currency", "ex_rate", "roundOff", 
         "total", "paid", "recieved", "createdAt", "party_Name", "companyId"
@@ -1592,14 +1616,15 @@ routes.get("/invoiceBalancing", async (req, res) => {
       include: [
         {
           model: SE_Job,
+          required: false,
           include: [
-            { model: Clients, as: "shipper", attributes: ["name"] },
-            { model: Clients, as: "Client", attributes: ["name"] },
-            { model: Vessel, as: "vessel", attributes: ["name"] },
-            { model: Voyage, as: "Voyage", attributes: ["voyage"] },
-            { model: Employees, as: "sales_representator", attributes: ["name"] },
-            { model: Bl, attributes: ["hbl", "mbl"] },
-            { model: SE_Equipments, attributes: ["qty", "size"] },
+            { model: Clients, required: false, as: "shipper", attributes: ["name"] },
+            { model: Clients, required: false, as: "Client", attributes: ["name"] },
+            { model: Vessel, required: false, as: "vessel", attributes: ["name"] },
+            { model: Voyage, required: false, as: "Voyage", attributes: ["voyage"] },
+            { model: Employees, required: false, as: "sales_representator", attributes: ["name"] },
+            { model: Bl, required: false, attributes: ["hbl", "mbl"] },
+            { model: SE_Equipments, required: false, attributes: ["qty", "size"] },
           ],
           order: [["createdAt", "ASC"]],
           attributes: [
@@ -1612,7 +1637,7 @@ routes.get("/invoiceBalancing", async (req, res) => {
         },
       ],
     });
-
+    console.log("Result Count:", result.length);
     res.json({ status: "success", result });
   } catch (error) {
     console.error(error);

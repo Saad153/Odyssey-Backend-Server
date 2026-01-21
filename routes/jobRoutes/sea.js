@@ -1457,10 +1457,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
@@ -1743,10 +1740,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 
@@ -1772,7 +1766,8 @@ const safeFindOne = async (model, id) => {
 };
 
 const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) => {
-  for(let CP of Charge){
+  try{
+    for(let CP of Charge){
     const charge = await Charges.findOne({where:{code:CP.ChargesId}})
     let party = await Clients.findOne({where:{climaxId:CP.VendorId}})
     // if(!party){
@@ -2049,8 +2044,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           companyId: companyId,
           partyType: ipartyType,
           note: i.Remarks,
-          createdAt: moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
-          updatedAt: i.invoiceDate?moment(i.invoiceDate):moment(i.invoiceDate) || moment().format("YYYY-MM-DD"),
+          createdAt: moment(i.InvoiceDate),
+          updatedAt: moment(i.InvoiceDate),
           SEJobId: savedJob.id,
           climaxId: i.Id
         }
@@ -2092,7 +2087,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           partyType: i.GL_Voucher.GL_Voucher_Detail[0].GL_COA.GL_COA.AccountName.includes("PAYABLE") ? 'vendor' : 'client',
           tranDate: i.GL_Voucher.VoucherDate,
           createdBy: i.GL_Voucher.AddLog,
-          createdAt: i.GL_Voucher.AddOn,
+          createdAt: moment(i.GL_Voucher.AddOn),
           updatedAt: i.GL_Voucher.EditOn?i.GL_Voucher.EditOn:i.GL_Voucher.AddOn,
           CompanyId: companyId,
           invoice_Id: savedInvoice.id
@@ -2105,8 +2100,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
             type: vh.DebitLC == 0 ? "credit" : "debit",
             narration: vh.NarrationVD,
             accountType: vh.GL_COA.GL_COASubCategory.SubCategory,
-            createdAt: vch.AddOn,
-            updatedAt: vch.EditOn?vch.EditOn:vch.AddOn || moment().format("YYYY-MM-DD"),
+            createdAt: vch.createdAt,
+            updatedAt: vch.updatedAt,
             VoucherId: vch.id,
             ChildAccountId: accountMap.get(`${vh.GL_COA.AccountName}`).id,
           }
@@ -2115,6 +2110,9 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
       }
     }
   }
+}catch(e){
+  console.log(e)
+}
 }
 
 // const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
@@ -2543,7 +2541,8 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
 // }
 
 const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) => {
-  for (let CP of Charge) {
+  try{
+    for (let CP of Charge) {
 
     const charge = await Charges.findOne({ where: { code: CP.ChargesId } });
 
@@ -2665,8 +2664,8 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
           companyId,
           partyType: "client",
           note: i.Remarks,
-          createdAt: moment(i.invoiceDate),
-          updatedAt: moment(i.invoiceDate),
+          createdAt: moment(i.InvoiceDate),
+          updatedAt: moment(i.InvoiceDate),
           SEJobId: savedJob.id,
           climaxId: i.Id
         };
@@ -2726,6 +2725,10 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
       }
     }
   }
+}catch(e){
+  console.error("Error", e)
+  // res.status(500).json({ status: "error", result: e })
+}
 };
 
 
@@ -3150,10 +3153,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        const companyId = a.Parent_Account?.CompanyId;
-        if (companyId) {
-          accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
-        }
+        accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
 

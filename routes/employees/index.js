@@ -84,6 +84,7 @@ routes.post("/editEmployee", async(req, res) => {
         
     }
     catch (error) {
+        console.error(error)
       res.json({status:'error', result:error});
     }
 });
