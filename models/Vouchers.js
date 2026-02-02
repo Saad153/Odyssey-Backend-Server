@@ -86,6 +86,11 @@ module.exports = (sequelize, DataTypes) => {
         createdBy:{
             type:DataTypes.STRING,
         },
+
+        climaxId:{
+            type:DataTypes.INTEGER,
+            allowNull: true,
+        },
     })
     return Vouchers;
 }

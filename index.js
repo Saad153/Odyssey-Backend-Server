@@ -110,7 +110,7 @@ app.use((err, req, res, next) => {
 /* eslint-enable no-unused-vars */
 
 // ----- Start server after DB sync -----
-const PORT = process.env.PORT || 8082;
+const PORT = process.env.PORT || 8084;
 
 (async () => {
   try {
