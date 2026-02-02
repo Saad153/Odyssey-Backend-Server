@@ -306,8 +306,8 @@ routes.get("/testResetSomeInvoices", async(req, res) => {
 
 routes.get("/getAllInvoicesByPartyId", async(req, res) => {
   try {
-    console.log(req.headers)
-    console.log(req.body)
+    console.log("Header", req.headers)
+    console.log("Body", req.body)
     // account = Client_Associations;
     // acc = await account.findOne({
     //   where: {
@@ -328,7 +328,7 @@ routes.get("/getAllInvoicesByPartyId", async(req, res) => {
         ClientId: parseInt(req.headers.id)
       }
     })
-    console.log(account)
+    console.log("Account:", account)
     const result = await Invoice.findAll({
       where:{
         approved:"1",

@@ -27,6 +27,10 @@ module.exports = (sequelize, DataTypes) => {
         accountType:{
             type:DataTypes.STRING
         },
+        climaxId:{
+            type:DataTypes.INTEGER,
+            allowNull: true,
+        },
     })
     return Voucher_Heads;
 }

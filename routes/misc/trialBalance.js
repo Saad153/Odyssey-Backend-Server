@@ -81,10 +81,11 @@ routes.get(`/${url}/get`, async (req, res) => {
     if (req.headers.accountid) {
       obj.id = req.headers.accountid;
     }
-
-    const condition = req.headers.currency !== "PKR"
-      ? { currency: req.headers.currency }
-      : null;
+    
+    const condition = {
+      ...(req.headers.currency !== 'PKR' && { currency: req.headers.currency }),
+      ...(req.headers.company && { CompanyId: req.headers.company }),
+    };
 
     // 1️⃣ Get only accounts that have children — but exclude TOP-LEVEL
     const parents = await Child_Account.findAll({
