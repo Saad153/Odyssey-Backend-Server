@@ -2715,5 +2715,4 @@ routes.post("/checkVoucherHeads", async (req, res) => {
   }
 })
 
-
 module.exports = routes;

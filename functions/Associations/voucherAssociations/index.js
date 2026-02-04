@@ -45,4 +45,13 @@ Vouchers.hasMany(Office_Vouchers, {
 });
 Office_Vouchers.belongsTo(Vouchers);
 
+Vouchers.hasMany(Invoice, {
+    foreignKey:{
+        type: DataTypes.INTEGER,
+        allowNull:true,
+        as: 'invoice_Id'
+    }
+});
+Invoice.belongsTo(Vouchers);
+
 module.exports = { Vouchers, Voucher_Heads, Office_Vouchers }
