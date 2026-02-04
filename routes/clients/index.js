@@ -282,13 +282,14 @@ routes.get("/getClientById", async(req, res) => {
             where:{id:req.headers.id},
             include:[{
                 model:Client_Associations,
+                required:false,
                 attributes:['id'],
                 include:[{
-                    where:{CompanyId:1},
                     attributes:['id', 'title'],
-                    model:Parent_Account,
+                    model:Child_Account,
                     include:[{
-                        model:Child_Account
+                        model:Child_Account,
+                        as: 'children'
                     }]
                 }]
             }]
@@ -296,6 +297,7 @@ routes.get("/getClientById", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
+        console.error(error)
       res.json({status:'error', result:error});
     }
 });

@@ -689,8 +689,10 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
     }
     let addition = lastJB?.Charge_Heads?.length==0?0:1;
     company = companyId=='1'?"SNS":companyId=='2'?"CLS":"ACS";
+    // month() is 0-based: Jan = 0, July = 6
+    const invoiceYear = moment().month() >= 6 ? moment().add(1, 'years').format("YY"): moment().format("YY");
     let result = {
-      invoice_No:(lastJB==null || lastJB.invoice_Id==null)?`${company}-${init}-${1}/${moment().add(1, 'years').format("YY")}`:`${company}-${init}-${parseInt(lastJB.invoice_Id)+parseInt(addition)}/${moment().add(1, 'years').format("YY")}`,
+      invoice_No:(lastJB == null || lastJB.invoice_Id == null)? `${company}-${init}-1/${invoiceYear}`: `${company}-${init}-${Number(lastJB.invoice_Id) + Number(addition)}/${invoiceYear}`,
       invoice_Id: (lastJB==null || lastJB.invoice_Id==null)?1: parseInt(lastJB.invoice_Id)+parseInt(addition),
       type:type,
       status: "1",
@@ -1414,7 +1416,7 @@ routes.get("/jobBalancing", async (req, res) => {
       invoiceObj.payType=req.headers.paytype
     }
     // party wise invoice/bill
-    account?invoiceObj.party_Id=req.headers.party:null
+    account?invoiceObj.party_Id=account.ChildAccountId.toString():null
     // Company wise invoice/bill
     if(req.headers.company=='4'){
       invoiceObj = {
@@ -1593,22 +1595,22 @@ routes.get("/invoiceBalancing", async (req, res) => {
     }
     let account = [];
     if (req.headers.overseasagent) {
-      account = await Client_Associations.findAll({
+      account = await Client_Associations.findOne({
         where: {
           ClientId: req.headers.overseasagent,
         },
       });
     }
     console.log("Account:", account);
-    if (account.length > 0) {
-      invoiceObj.party_Id = account.map(a => a.ChildAccountId.toString());
+    if (account && account.ChildAccountId) {
+      invoiceObj.party_Id = account.ChildAccountId.toString();
     }
     console.log("InvoiceObj:", invoiceObj);
     const result = await Invoice.findAll({
-      // where: invoiceObj,
-      where: {
-        party_Id: req.headers.overseasagent
-      },
+      where: invoiceObj,
+      // where: {
+      //   party_Id: req.headers.overseasagent
+      // },
       attributes: [
         "id", "invoice_No", "payType", "currency", "ex_rate", "roundOff", 
         "total", "paid", "recieved", "createdAt", "party_Name", "companyId"
