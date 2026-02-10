@@ -285,6 +285,7 @@ routes.get("/getClientById", async(req, res) => {
                 required:false,
                 attributes:['id'],
                 include:[{
+                    where:{CompanyId:1},
                     attributes:['id', 'title'],
                     model:Child_Account,
                     include:[{

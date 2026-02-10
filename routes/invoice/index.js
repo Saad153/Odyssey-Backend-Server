@@ -1914,4 +1914,293 @@ routes.get("/invoiceMatching", async (req, res) => {
   }
 });
 
+// routes.get("/ageingSummary", async (req, res) => {
+//   try {
+//     // Prefer req.query for GET: /invoices?from=01-01-2026&to=31-01-2026
+//     const { from, to } = req.headers; // or req.body if POST
+//     console.log(req.headers)
+//     // Parse known format (e.g., DD-MM-YYYY). Use strict parsing (true).
+//     const start = moment(from, 'DD-MM-YYYY', true).startOf('day');
+//     const end   = moment(to,   'DD-MM-YYYY', true).endOf('day');
+
+//     if (!start.isValid() || !end.isValid()) {
+//       return res.status(400).json({ status: 'error', message: 'Invalid date format. Use DD-MM-YYYY' });
+//     }
+//     if (end.isBefore(start)) {
+//       return res.status(400).json({ status: 'error', message: '`to` must be on/after `from`' });
+//     }
+
+//     const condition = {};
+
+//     if (req.headers.ageing_account != 'undefined' && req.headers.ageing_account != '') {
+//       condition.party_Id = req.headers.ageing_account;
+//     }
+
+//     const companyId = (req.headers.ageing_company || "")
+//     .split(',')
+//     .map(id => id.trim())
+//     .filter(id => !isNaN(id));
+
+//     const RP = (req.headers.ageing_rp || "")
+//     .split(',')
+//     .map(id => id.trim())
+//     // .filter(id => !isNaN(id));
+
+//     let partyType = ['client', 'vendor']
+//     if(req.headers.ageing_partytype == 'Local'){
+//       partyType = ['client', 'vendor']
+//     }
+//     if(req.headers.ageing_partytype == 'Agent'){
+//       partyType = ['agent']
+//     }
+//     console.log("Party Type", partyType)
+//     console.log("CompanyId", companyId)
+//     console.log("RP", RP)
+//     console.log("Condition", condition)
+
+//     const result = await Invoice.findAll({
+//       where: {
+//         updatedAt: {
+//           [Op.between]: [start.toDate(), end.toDate()],
+//         },
+//         companyId: {
+//           [Op.in]: companyId
+//         },
+//         partyType: {
+//           [Op.in]: partyType
+//         },
+//         payType: {
+//           [Op.in]: RP
+//         },
+//         // currency: req.headers.ageing_currency,
+//         ...condition
+//       },
+//       include: [
+//         {
+//           model: Invoice_Transactions
+//         },
+//       ]
+//       // include: [...] // if needed
+//       // attributes: [...] // if needed
+//     });
+//     let temp = []
+//     for(let rec of result){
+//       let account = await Child_Account.findOne({
+//         where: {
+//           id: rec.party_Id
+//         }
+//       })
+//       console.log("Account", account)
+//       // rec.partyType = account.dataValues.type
+//       rec.partyName = account.dataValues.title
+//       rec.partyCode = account.dataValues.code
+//       temp.push(rec)
+//     }
+//     console.log("Result Length", temp.length)
+//     return res.json({ status: 'success', temp });
+//   } catch (error) {
+//     console.log(error)
+//     res.json({ status: "error", result: error });
+//   }
+// });
+
+// Make sure you have these imports in your module:
+// const moment = require('moment');
+// const { Op } = require('sequelize');
+// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust paths
+
+// Ensure imports:
+// const moment = require('moment');
+// const { Op, col, Sequelize } = require('sequelize');
+// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust path
+
+routes.get("/ageingSummary", async (req, res) => {
+  try {
+    // ---------- 1) Helpers ----------
+    const clean = (v) => {
+      if (v == null) return null;
+      const s = v.toString().trim();
+      if (!s) return null;
+      const low = s.toLowerCase();
+      if (low === "undefined" || low === "null") return null;
+      return s;
+    };
+
+    const splitList = (v) =>
+      (v ?? "")
+        .toString()
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    // Try to detect column type safely
+    const attrTypeKey = Invoice?.rawAttributes?.companyId?.type?.key; // e.g., 'STRING' or 'INTEGER'
+    const isCompanyIdNumeric =
+      typeof attrTypeKey === "string" &&
+      ["INTEGER", "BIGINT", "FLOAT", "DOUBLE", "DECIMAL", "NUMBER"].includes(attrTypeKey.toUpperCase());
+
+    // ---------- 2) Inputs (prefer query, fallback to headers) ----------
+    const q = req.query || {};
+    const h = req.headers || {};
+
+    console.log("Headers:", h)
+
+    const fromRaw = clean(q.from ?? h.from);
+    const toRaw   = clean(q.to   ?? h.to);
+
+    // ---------- 3) Dates ----------
+    const start = moment(fromRaw, "DD-MM-YYYY", true).startOf("day");
+    const end   = moment(toRaw,   "DD-MM-YYYY", true).endOf("day");
+
+    if (!start.isValid() || !end.isValid()) {
+      return res.status(400).json({ status: "error", message: "Invalid date format. Use DD-MM-YYYY" });
+    }
+    if (end.isBefore(start)) {
+      return res.status(400).json({ status: "error", message: "`to` must be on/after `from`" });
+    }
+
+    // ---------- 4) WHERE ----------
+    const where = {
+      // If ageing should use invoiceDate/dueDate, change this field
+      updatedAt: { [Op.between]: [start.toDate(), end.toDate()] },
+    };
+
+    // party_Id (ageing_account)
+    const ageingAccount = clean(q.ageing_account ?? h.ageing_account);
+    if (ageingAccount) {
+      // Keep as string; your invoices show party_Id like "7328"
+      where.party_Id = ageingAccount;
+    }
+
+    // companyId (handle type correctly)
+    const companyTokens = splitList(q.ageing_company ?? h.ageing_company);
+    if (companyTokens.length > 0) {
+      if (isCompanyIdNumeric) {
+        const asNumbers = companyTokens
+          .map(n => Number(n))
+          .filter(n => Number.isFinite(n));
+        if (asNumbers.length > 0) {
+          where.companyId = { [Op.in]: asNumbers };
+        }
+      } else {
+        // Treat as strings to avoid varchar = integer errors
+        where.companyId = { [Op.in]: companyTokens };
+      }
+    }
+
+    // partyType (Agent -> ['agent'], default/local -> ['client','vendor'])
+    const rawPartyType = (clean(q.ageing_partytype ?? h.ageing_partytype) ?? "").toLowerCase();
+    if (rawPartyType === "agent") {
+      where.partyType = { [Op.in]: ["agent"] };
+    } else {
+      // local/unspecified -> client & vendor
+      where.partyType = { [Op.in]: ["client", "vendor"] };
+    }
+
+    // payType normalization to DB values ('Recievable' / 'Payble' as per your current data)
+    const normalizePayTypeForDB = (s) => {
+      const v = (s ?? "").toString().trim().toLowerCase();
+      if (!v) return null;
+      if (v === "recievable" || v === "receivable") return "Recievable";
+      if (v === "payble" || v === "payable") return "Payble";
+      return null;
+    };
+    const payTypes = splitList(q.ageing_rp ?? h.ageing_rp)
+      .map(normalizePayTypeForDB)
+      .filter(Boolean);
+    if (payTypes.length > 0) {
+      where.payType = { [Op.in]: payTypes };
+    }
+
+    console.log("WHERE:", where);
+
+    // ---------- 5) Query invoices (no N+1 for transactions) ----------
+    const invoices = await Invoice.findAll({
+      where,
+      include: [{ model: Invoice_Transactions }],
+      order: [
+        ["party_Id", "ASC"],
+        ["updatedAt", "ASC"],
+        [Invoice_Transactions, "createdAt", "ASC"],
+      ],
+      // logging: console.log,
+    });
+
+    if (!invoices || invoices.length === 0) {
+      return res.json({ status: "success", temp: [] });
+    }
+
+    // ---------- 6) Bulk-load accounts to avoid N+1 ----------
+    const uniquePartyIds = [
+      ...new Set(
+        invoices
+          .map(r => (r.party_Id ?? "").toString().trim())
+          .filter(Boolean)
+      )
+    ];
+
+    // Detect Child_Account.id type
+    const acctIdTypeKey = Child_Account?.rawAttributes?.id?.type?.key;
+    const acctIdIsNumeric =
+      typeof acctIdTypeKey === "string" &&
+      ["INTEGER", "BIGINT", "FLOAT", "DOUBLE", "DECIMAL", "NUMBER"].includes(acctIdTypeKey.toUpperCase());
+
+    const accountWhereIds = acctIdIsNumeric
+      ? uniquePartyIds.map(v => Number(v)).filter(Number.isFinite)
+      : uniquePartyIds;
+
+    const accounts = await Child_Account.findAll({
+      where: { id: { [Op.in]: accountWhereIds } },
+      attributes: ["id", "title", "code"],
+      // logging: console.log,
+    });
+
+    const accountMap = new Map(
+      accounts.map(a => [String(a.id), a.get({ plain: true })])
+    );
+
+    // ---------- 7) Enrich + group to [{ partyName, invoices: [...] }] ----------
+    const groupedMap = new Map(); // key by party_Id
+    for (const inv of invoices) {
+      const plain = inv.get ? inv.get({ plain: true }) : inv;
+      const key = String(plain.party_Id ?? "");
+      if (!key) continue;
+
+      const acc = accountMap.get(key);
+      const enriched = {
+        ...plain,
+        partyName: acc?.title ?? plain.party_Name ?? null,
+        partyCode: acc?.code ?? null,
+      };
+
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          partyId: key,
+          partyName: enriched.partyName ?? "(Unknown)",
+          partyCode: enriched.partyCode ?? "(Unknown)",
+          invoices: [],
+        });
+      }
+      groupedMap.get(key).invoices.push(enriched);
+    }
+
+    const temp = Array.from(groupedMap.values()).map(({ partyName, partyCode, invoices }) => ({
+      partyName,
+      partyCode,
+      invoices,
+    }));
+
+    return res.json({ status: "success", temp });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ status: "error", message: "Internal server error" });
+  }
+});
+// Make sure these are imported in your module:
+// const moment = require('moment');
+// const util = require('util');
+// const { Op } = require('sequelize');
+// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust path
+
+
 module.exports = routes;        
