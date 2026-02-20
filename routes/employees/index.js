@@ -1,7 +1,10 @@
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const Op = Sequelize.Op;
-const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations")
+const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations");
+const { sequelize } = require('../../models');
+const History = require('../../models/History');
+const { createHistory } = require('../../functions/history');
 
 function getAccessLevels(levels, id){
     let levelsList = [];
@@ -23,6 +26,7 @@ routes.post("/createEmployee", async(req, res) => {
               }
         })
         if(result){
+            createHistory(req.body.employeeId, 'Employee', 'Create', result.name);
             res.json({status:'exists'});
         }else{
             const result = await Employees.create({
@@ -47,6 +51,7 @@ routes.post("/createEmployee", async(req, res) => {
                 active:1
             });
             const resultTwo = await Access_Levels.bulkCreate(getAccessLevels(req.body.values.accessLevels, result.id))
+            createHistory(req.body.employeeId, 'Employee', 'Create', result.name);
             res.json({status:'success', result:result, resultTwo:resultTwo});
         }
     }
@@ -80,6 +85,7 @@ routes.post("/editEmployee", async(req, res) => {
             active:1
         }, {where:{id:req.body.values.id}})
         const resultTwo = await Access_Levels.bulkCreate(getAccessLevels(req.body.values.accessLevels, req.body.values.id))
+        createHistory(req.body.employeeId, 'Employee', 'Edit', req.body.values.empName);
         res.json({status:'success', result:result, resultTwo:resultTwo});
         
     }
@@ -158,5 +164,6 @@ routes.get('/allRiders', async(req, res) => {
     catch (error) {
       res.json({status:'error', result:error});
     }
-})
+});
+
 module.exports = routes;
