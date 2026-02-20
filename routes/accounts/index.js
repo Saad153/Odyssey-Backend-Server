@@ -10,6 +10,7 @@ const { Client_Associations, Clients } = require('../../functions/Associations/c
 // const { Vendor_Associations, Vendors } = require('../../functions/Associations/vendorAssociations');
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info } = require("../../functions/Associations/jobAssociations/seaExport");
+const { createHistory } = require('../../functions/history');
 
 //Voucher Types
 // (For Jobs)
@@ -77,10 +78,12 @@ async function getAllAccounts(id){
       attributes:['id', 'title'],
       include:[{
         model:Child_Account,
+        as: 'parent',
         // where:{CompanyId:id},
         attributes:['id', 'title', 'editable', 'ChildAccountId', 'code'],
         include:[{
           model:Child_Account,
+          as: 'parent',
           attributes:['id', 'title', 'ChildAccountId', 'createdAt', 'editable', 'code', 'subCategory'],
           order: [['id', 'DESC']],
         }]
@@ -164,14 +167,6 @@ routes.post("/importAccounts", async (req, res) => {
 routes.post("/importAccount", async (req, res) => {
   const dataArray = req.body;
 
-  // const TOP_LEVEL_NAME_MAP = {
-  //   "capital": "Equity",
-  //   "expense": "Expense",
-  //   "laibility": "Liabilities",
-  //   "revenue": "Income/Sales",
-  //   "assets": "Assets",
-  // };
-
   try {
 
     for(let item of dataArray){
@@ -186,131 +181,6 @@ routes.post("/importAccount", async (req, res) => {
       })
 
     }
-
-
-  //   const companyIds = [1, 3];
-
-  //   for (const companyId of companyIds) {
-  //     const accountIdMap = new Map();        // oldId → Accounts.id
-  //     const parentAccountIdMap = new Map();  // oldId → Parent_Account.id
-  //     const childAccountIdMap = new Map();   // oldId → Child_Account.id
-
-  //     // PASS 1: Map top-level accounts
-  //     for (const item of dataArray) {
-  //       if (!item.ParentAccountId) {
-  //         const mappedTitle = TOP_LEVEL_NAME_MAP[item.AccountName.toLowerCase()];
-  //         if (!mappedTitle) {
-  //           console.warn(`Top-level account '${item.AccountName}' not mapped`);
-  //           continue;
-  //         }
-
-  //         const baseAccount = await Accounts.findOne({
-  //           where: { title: mappedTitle },
-  //         });
-
-  //         if (!baseAccount) {
-  //           console.warn(`Mapped top-level account '${mappedTitle}' not found`);
-  //           continue;
-  //         }
-
-  //         accountIdMap.set(item.Id, baseAccount.id);
-  //       }
-  //     }
-
-  //     // PASS 2: Create Parent_Accounts whose parent is a top-level Account
-  //     for (const item of dataArray) {
-  //       const ParentAccountId = accountIdMap.get(item.ParentAccountId);
-  //       if (ParentAccountId && !parentAccountIdMap.has(item.Id)) {
-  //         const newParent = await Parent_Account.create({
-  //           title: item.AccountName,
-  //           code: item.Id.toString(),
-  //           subCategory: item.SubCategory?.SubCategory || null,
-  //           editable: item.IsVoucherEntryAllowed !== false,
-  //           CompanyId: companyId,
-  //           AccountId: ParentAccountId,
-  //         });
-  //         if(item.Voucher_Detail){
-  //           console.log("Parent contains Vouchers")
-  //           const newChild = await Child_Account.create({
-  //           title: item.AccountName,
-  //           code: item.Id.toString(),
-  //           subCategory: item.SubCategory?.SubCategory || null,
-  //           editable: item.IsVoucherEntryAllowed !== false,
-  //           ParentAccountId: newParent.id,
-  //         });
-
-  //         childAccountIdMap.set(item.Id, newChild.id);
-  //         }
-
-  //         parentAccountIdMap.set(item.Id, newParent.id);
-  //       }
-  //     }
-
-      // PASS 3: Create Parent_Accounts whose parent is another Parent_Account
-      // for (const item of dataArray) {
-      //   const parentParentId = parentAccountIdMap.get(item.ParentAccountId);
-      //   if (parentParentId && !parentAccountIdMap.has(item.Id)) {
-      //     const topAccountId = await Parent_Account.findByPk(parentParentId);
-      //     if (!topAccountId?.accountId) continue;
-
-      //     const newParent = await Parent_Account.create({
-      //       title: item.AccountName,
-      //       code: item.Id.toString(),
-      //       subCategory: item.SubCategory?.SubCategory || null,
-      //       editable: item.IsVoucherEntryAllowed !== false,
-      //       CompanyId: companyId,
-      //       accountId: topAccountId.accountId,
-      //     });
-
-      //     parentAccountIdMap.set(item.Id, newParent.id);
-      //   }
-      // }
-
-      // PASS 4: Create Child_Accounts whose parent is a Parent_Account
-      // for (const item of dataArray) {
-      //   const parentId = parentAccountIdMap.get(item.ParentAccountId);
-      //   if (parentId && !childAccountIdMap.has(item.Id)) {
-      //     const newChild = await Child_Account.create({
-      //       title: item.AccountName,
-      //       code: item.Id.toString(),
-      //       subCategory: item.SubCategory?.SubCategory || null,
-      //       editable: item.IsVoucherEntryAllowed !== false,
-      //       ParentAccountId: parentId,
-      //     });
-
-      //     childAccountIdMap.set(item.Id, newChild.id);
-      //   }
-      // }
-
-      // PASS 5: Handle children whose parent is a Child_Account → fallback to grandparent Parent_Account
-      // for (const item of dataArray) {
-      //   const parentIsChildId = childAccountIdMap.get(item.ParentAccountId);
-
-      //   // Only handle if not already inserted
-      //   if (parentIsChildId && !childAccountIdMap.has(item.Id)) {
-      //     // Use the source ParentAccountId's ParentAccountId
-      //     const grandParentSourceId = dataArray.find(x => x.Id === item.ParentAccountId)?.ParentAccountId;
-
-      //     const realParentAccountId = parentAccountIdMap.get(grandParentSourceId);
-
-      //     if (!realParentAccountId) {
-      //       console.warn(`Could not resolve grandparent for ${item.AccountName}`);
-      //       continue;
-      //     }
-
-      //     const newChild = await Child_Account.create({
-      //       title: item.AccountName,
-      //       code: item.Id.toString(),
-      //       subCategory: item.SubCategory?.SubCategory || null,
-      //       editable: item.IsVoucherEntryAllowed !== false,
-      //       companyId,
-      //       ParentAccountId: realParentAccountId,
-      //     });
-
-      //     childAccountIdMap.set(item.Id, newChild.id);
-      //   }
-      // }
-    // }
 
     return res.json({
       status: "success",
@@ -455,15 +325,16 @@ routes.post("/editParentAccount", async(req, res) => {
 
 routes.post("/editChildAccount", async(req, res) => {
 
-  const {id, title, ParentAccountId, CompanyId} = req.body
+  const {id, title, CompanyId, employeeId} = req.body
   try {
-    const result = await Child_Account.findOne({where:{title, ParentAccountId}})
+    const result = await Child_Account.findOne({where:{title}})
     if(result){
       res.json({status:'exists', result:result});
     }else{
       await Child_Account.update({title:title},{where:{id:id}})
       let val;
       val = await getAllAccounts(CompanyId);
+      createHistory(employeeId, 'Account', 'Edit', title);
       res.json({status:'success', result:val});
     }
   }
@@ -514,7 +385,6 @@ routes.get("/getAllAccounts", async(req, res) => {
   try {
     let result;
     result = await getAccountHierarchy();
-    // console.log(result);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -538,21 +408,10 @@ routes.get("/getAccountsForTransaction", async(req, res) => {
     let ChildObj = { };
     if(req.headers.type=="Bank") {
         ChildObj = {subCategory:'Bank'}
-        // obj.CompanyId = req.headers.companyid
       } else if(req.headers.type=="Cash"){
-        // obj.CompanyId = req.headers.companyid
       ChildObj = {subCategory:'Cash'}
     } else if(req.headers.type=='Adjust') {
-        // obj.CompanyId = req.headers.companyid
         ChildObj = {subCategory:'General'}
-        //   obj = {
-        //     [Op.and]: [
-        //       { title: { [Op.ne]: "Cash" } },
-        //       { title: { [Op.ne]: "Accounts Recievable" } },
-        //       { title: { [Op.ne]: "Accounts Payble" } },
-        //       { title: { [Op.ne]: "Bank" } }
-        //     ]
-        //   }
     } else if(req.headers.type=='officevouchers') { 
       obj = {
         [Op.and]: [
@@ -575,7 +434,6 @@ routes.get("/getAccountsForTransaction", async(req, res) => {
     } else if(req.headers.type=='Income' || 'Selling Expense') {
       obj = {
         title:req.headers.type,
-        // CompanyId:parseInt(req.headers.companyid),
       }
     } else {
       obj = { title:req.headers.type }
@@ -672,15 +530,6 @@ routes.get("/getAccountsForTransactionVouchers", async(req, res) => {
 
 routes.get("/getAllChilds", async(req, res) => {
   try {
-    // const result = await Child_Account.findAll({
-    //   attributes:["title", "id","code","subCategory"],
-    //   include:[{
-    //     model:Child_Account,
-    //     as: 'parent',
-    //     // where:{CompanyId:req.headers.companyid},
-    //     attributes:["title"]
-    //   }]
-    // });
     const result = await Child_Account.findAll({
       attributes: ["title", "id", "code", "subCategory"],
       include: [
@@ -706,7 +555,6 @@ routes.get("/getAllParents", async(req, res) => {
   try {
     const result = await Child_Account.findAll({
       attributes:["title", "id","code"],
-      // where:{CompanyId:req.headers.companyid},
     });
     res.json({status:'success', result:result});
   }
@@ -808,7 +656,6 @@ routes.get("/childForJobApproval", async(req, res) => {
   try {
     const result = await Parent_Account.findOne({
       where:{
-        //title:req.headers.title,
         CompanyId:req.headers.companyid,
       },
       attributes:["id"],
@@ -871,32 +718,6 @@ routes.get("/balanceSheetOld", async(req, res) => {
 
 routes.get("/balanceSheet", async(req, res) => {
   try {
-    // const resultOne = await Child_Account.findAll({
-    //   attributes:["title"],
-    //   where:{
-    //     title:'ASSETS'//[ 5,4,3 ]
-    //   },
-    //   include:[{
-    //     model:Child_Account,
-    //     as: 'children',
-    //     // where:{ CompanyId:req.headers.companyid },
-    //     attributes:["title"],
-    //     include:[{
-    //       model:Child_Account,
-    //       as: 'children',
-    //       attributes:["title"],
-    //       include:[{
-    //         model:Voucher_Heads,
-    //         attributes:["amount", "type"],
-    //         include:[{
-    //           model:Vouchers,
-    //           attributes:["id"],
-    //           where:{CompanyId:req.headers.companyid}
-    //         }],
-    //       }]
-    //     }]
-    //   }]
-    // });
     const layers = 4; // make this dynamic later if you want
 
     const resultOne = await Child_Account.findAll({
@@ -1086,7 +907,6 @@ routes.get("/getByDate", async(req, res) => {
           model:Voucher_Heads,
           where:{
             createdAt: {
-              // [Op.gte]: moment(req.headers.from).toDate(),
               [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
             }
           },
@@ -1113,38 +933,6 @@ routes.get("/getLedger", async(req, res) => {
     const childAccountCondition = req.headers.id!='undefined'
       ? { ChildAccountId: req.headers.id }
       : { ChildAccountId: { [Op.ne]: null } };
-      
-    // const toDateMoment = moment(req.headers.to, "DD-MM-YYYY", true);
-
-    // if (!toDateMoment.isValid()) {
-    //   return res.status(400).json({ status: 'error', message: 'Invalid to date' });
-    // }
-
-    // const result = await Voucher_Heads.findAll({
-    //   raw: true,
-    //   where: {
-    //     ...childAccountCondition,
-    //     createdAt: {
-    //       [Op.lte]: toDateMoment.add(1, "days").toDate(),
-    //     },
-    //   },
-    //   attributes: ['amount', 'type', 'narration', 'createdAt', 'defaultAmount', 'accountType'],
-    //   include: [
-    //     {
-    //       model: Vouchers,
-    //       attributes: ['voucher_Id', 'id', 'type', 'currency', 'exRate', 'vType', 'chequeNo', 'chequeDate'],
-    //       where: {
-    //         ...currencyCondition,
-    //         CompanyId: req.headers.company,
-    //       },
-    //     },
-    //     {
-    //       model: Child_Account,
-    //       attributes: ['title'],
-    //     },
-    //   ],
-    //   order: [["createdAt", "ASC"]],
-    // });
 
     const result = await Voucher_Heads.findAll({
       raw:true,
@@ -1309,25 +1097,6 @@ routes.get("/getOpeningBalances", async(req, res) => {
     res.json({status:'error', result:error});
   }
 });
-
-// routes.get("/getPartySetupAccounts", async(req, res) => {
-//   try {
-//     const parentAccounts = await Child_Account.findAll({
-//       attributes:['id', 'title'],
-//       where:{ [Op.or]: [{title: 'ASSETS'}, {title:'LAIBILITY'}]},
-//       include:[{
-//         model:Child_Account,
-//         as: 'children',
-//         attributes:['id', 'title']
-//       }]
-//     });
-//     res.json({status:'success', result:parentAccounts});
-//   }
-//   catch (error) {
-//     console.error(error)
-//     res.json({status:'error', result:error});
-//   }
-// });
 
 routes.get("/getPartySetupAccounts", async (req, res) => {
   try {

@@ -14,6 +14,7 @@ const Sequelize = require('sequelize');
 const moment = require("moment");
 const { Client } = require("pg");
 const Op = Sequelize.Op;
+const { createHistory } = require('../../functions/history');
 
 const numCPUs = require('os').cpus().length;
 // Invoice statuses
@@ -71,7 +72,7 @@ routes.post("/approveCharges", async(req, res) => {
         `SNS-AB-${ parseInt(lastAB.invoice_Id)+1}/${moment().format("YY")}`
       }
     })
-
+    
     await res.json({status: 'success', result: result});
   }
   catch (error) {
@@ -89,6 +90,7 @@ routes.post("/updateCharges", async(req, res) => {
         }
       })
     });
+    createHistory(req.body.employeeId, 'Invoice', 'Edit', req.body.invoice[0].invoice_No);
     await res.json({status: 'success', result: 'result'});
   }
   catch (error) {
@@ -127,6 +129,7 @@ routes.post("/saveHeades", async(req, res) => {
       if(req.body.invoices[i].id==null){
         const result = await Invoice.create(req.body.invoices[i]);
         await Charge_Head.bulkCreate(makeHeads(req.body.invoices[i].charges, result.id))
+        createHistory(req.body.employeeId, 'Invoice', 'Create', result.invoice_No);
       }
 
       if(req.body.invoices[i].id!=null){
@@ -558,6 +561,7 @@ routes.post("/createInvoiceTransaction", async(req, res) => {
     req.body.invoiceLosses.forEach(async(y)=>{
       Invoice_Transactions.upsert(y)
     })
+    createHistory(req.body.employeeId, 'Invoice', 'Transaction', req.body.invoices[0].invoice_No);
     res.json({status: 'success', result: 'result'});
   }
   catch (error) {
@@ -570,6 +574,7 @@ routes.post("/roundOffInv", async(req, res) => {
   try {
     await Invoice.update({ roundOff:req.body.roundOff }, { where:{id:req.body.id} });
     await res.json({status: 'success', result: 'result'});
+    
   }
   catch (error) {
     res.json({status: 'error', result: error});
@@ -590,7 +595,9 @@ routes.post("/invApproveDisapp", async(req, res) => {
 // Adds a note to invoice and also the currency
 routes.post("/addInvoiceNote", async(req, res) => {
   try {
+    
     await Invoice.update({ note:req.body.note, currency:req.body.currency, total: req.body.total}, { where:{id:req.body.id} });
+    createHistory(req.body.employeeId, 'Invoice', 'Add Note', req.body.invoice_No);
     await res.json({status: 'success', result: 'result'});
   }
   catch (error) {
@@ -607,6 +614,7 @@ routes.post("/saveChargeHeades", async(req, res) => {
         Charge_Head.upsert(x);
       })
     ]);
+    createHistory(req.body.employeeId, 'Invoice', 'Round Off', req.body.invoice_No);
     res.json({status:'success'});
   }
   catch (error) {
@@ -624,6 +632,7 @@ routes.post("/saveHeadesNew", async(req, res) => {
     await req.body.charges.forEach(async(x) => {
       data = await Charge_Head.upsert(x);
     });
+    createHistory(req.body.employeeId, 'Invoice', 'Add Note', req.body.invoice_No);
     res.json({status:'success'});
   }
   catch (error) {
@@ -844,6 +853,7 @@ routes.post("/makeInvoiceNew", async(req, res) => {
       let chargeHeads = await Charge_Head.upsert({ ...x, InvoiceId:newInv.id, invoice_id: newInv.invoice_No });
       chargesIds.push(chargeHeads[0].dataValues.id)
     }
+    createHistory(req.body.employeeId, 'Invoice', 'Create', newInv.invoice_No);
     await res.json({status: 'success', result: {chargesIds, newInv}});
   }
   catch (error) {
@@ -975,7 +985,7 @@ routes.post("/openingInvoice", async(req, res) => {
         }
     );
   
-
+    createHistory(req.body.employeeId, 'Invoice', 'Approve', req.body.invoice_No);
     res.json({status:'success', result:{invoices}});
   }catch(e){
     console.log(e)
@@ -1041,6 +1051,7 @@ routes.post("/deleteOpeningInvoices", async(req, res) => {
     const voucher = await Vouchers.findOne({where:{invoice_Id:req.body.headers.id}})
     await Voucher_Heads.destroy({where:{VoucherId:voucher.dataValues.id}})
     await Vouchers.destroy({where:{invoice_Id:req.body.headers.id}})
+    createHistory(req.body.employeeId, 'Invoice', 'Delete', req.body.headers.invoice_No);
     res.json({status: 'success', result: req.body.headers.id});
   }catch(e){
     console.log(e)
@@ -1089,6 +1100,7 @@ routes.post("/unApprove", async(req, res)=>{
         invoice_Id: req.body.id.toString()
       }
     })
+    createHistory(req.body.employeeId, 'Invoice', 'Unapprove', inv.dataValues.invoice_No);
     res.json({status: 'success'});
   }catch(e){
     console.error(e)
@@ -1311,6 +1323,7 @@ routes.post("/approve", async(req, res) => {
     console.log(x.ChildAccountId)
      await Voucher_Heads.create(x)
   })
+  createHistory(req.body.employeeId, 'Invoice', 'Approve', invoice.dataValues.invoice_No);
     res.json({status: 'success', result: req.body.id});
   }catch(error){
     console.log(error)
@@ -1323,6 +1336,7 @@ routes.post("/approveHeads", async(req, res) => {
   try{
     const result = await Charge_Head.findOne({where:{id:req.body.id}})
     await Charge_Head.update({status:result.dataValues.status=="1"?"0":"1"}, {where:{id:result.dataValues.id}})
+    createHistory(req.body.employeeId, 'Invoice', 'Approve/Unapprove', req.body.invoice_No);
     res.json({status: 'success', result: result});
   }catch(error){
     console.log(error)
@@ -1681,6 +1695,7 @@ routes.post("/uploadbulkInvoicesTest", async (req, res) => {
       where:{name:req.body.party_Name},
       attributes:['id']
     })
+    createHistory(req.body.employeeId, 'Invoice', 'Upload', req.body.invoice_No);
     await res.json({ status:"success", result:resultOne?resultOne.id:resultTwo.id });
   } catch (error) {
     console.log(error);
@@ -1822,7 +1837,7 @@ routes.post("/updateVouchersWithInvoices", async (req, res) => {
         );
       }
     }
-
+    createHistory(req.body.employeeId, 'Invoice', 'Update', req.body.invoice_No);
     res.json({ status: 'success', message: 'All vouchers updated with invoice IDs.' });
   } catch (e) {
     console.log(e);
@@ -1878,6 +1893,7 @@ routes.post("/createBulkInvoices", async (req, res) => {
 
     let dataz = await setVoucherHeads(resultTwo.id, voucher.Voucher_Heads);
     const datab = await Voucher_Heads.bulkCreate(dataz);
+    createHistory(req.body.employeeId, 'Invoice', 'Create', req.body.invoice_No);
     await res.json({ status: "success" });
   } catch (error) {
     console.log(error)
@@ -2045,12 +2061,12 @@ routes.get("/ageingSummary", async (req, res) => {
 
     console.log("Headers:", h)
 
-    const fromRaw = clean(q.from ?? h.from);
-    const toRaw   = clean(q.to   ?? h.to);
+    const fromRaw = q.from ?? h.from;
+    const toRaw   = q.to   ?? h.to;
 
     // ---------- 3) Dates ----------
-    const start = moment(fromRaw, "DD-MM-YYYY", true).startOf("day");
-    const end   = moment(toRaw,   "DD-MM-YYYY", true).endOf("day");
+    const start = moment(fromRaw).startOf("day");
+    const end   = moment(toRaw).endOf("day");
 
     if (!start.isValid() || !end.isValid()) {
       return res.status(400).json({ status: "error", message: "Invalid date format. Use DD-MM-YYYY" });
@@ -2189,11 +2205,11 @@ routes.get("/ageingSummary", async (req, res) => {
       partyCode,
       invoices,
     }));
-
+    console.log("Result Length:", temp.length)
     return res.json({ status: "success", temp });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ status: "error", message: "Internal server error" });
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
   }
 });
 // Make sure these are imported in your module:

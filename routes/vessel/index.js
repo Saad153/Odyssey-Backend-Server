@@ -4,12 +4,14 @@ const routes = require('express').Router();
 const { Vessel } = require("../../models");
 //const { Voyage } = require('./functions/Associations/vesselAssociations');
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
+const { createHistory } = require('../../functions/history');
 
 routes.post("/create", async(req, res) => {
     try {
       const value = req.body.data;
       const check = await Vessel.max("code")
       const result = await Vessel.create({...value, code:check? parseInt(check) + 1:1});
+      createHistory(req.body.employeeId, 'Vessel', 'Create', result.name);
       res.json({status:'success', result:result});
     
     }
@@ -39,6 +41,7 @@ routes.post("/findVoyages", async(req, res) => {
           VesselId:req.body.id ,
       }
     });
+    createHistory(req.body.employeeId, 'Vessel', 'View Voyages', result.name);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -51,6 +54,7 @@ routes.post("/createVoyage", async(req, res) => {
     let data = req.body;
     delete data.id;
     const result = await Voyage.create(data);
+    createHistory(req.body.employeeId, 'Voyage', 'Create', result.voyage);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -64,6 +68,7 @@ routes.post("/editVoyage", async(req, res) => {
     const result = await Voyage.update(data,{
       where:{id:data.id}
     });
+    createHistory(req.body.employeeId, 'Voyage', 'Edit', result.name);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -94,6 +99,7 @@ routes.post("/edit", async(req, res) => {
         }
       });
       if(exists){
+        createHistory(req.body.employeeId, 'Vessel', 'Edit', result.name);
           res.json({status:'exists', result:exists});
       } else {
           await Vessel.update( {...value, code : parseInt(value.code)},{
@@ -138,6 +144,7 @@ routes.post("/uploadVoyages", async(req, res) => {
         }
         Vessels.push(ve)
       }
+      createHistory(req.body.employeeId, 'Vessel', 'Upload', result.name);
       res.json({status:'success', result:Vessels});
     }
     catch (error) {

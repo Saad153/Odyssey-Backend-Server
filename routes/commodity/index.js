@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
 const routes = require('express').Router();
 const { Commodity } = require("../../models");
+const { createHistory } = require('../../functions/history');
 
 routes.post("/create", async(req, res) => {
     let tempData = {...req.body.data};
@@ -8,6 +9,7 @@ routes.post("/create", async(req, res) => {
     tempData.isHazmat = req.body.data.isHazmat.length>0?1:0;
     try {
       const result = await Commodity.create(tempData);
+      createHistory(req.body.employeeId, 'Commodity', 'Create', result.name);
       res.json({status:'success', result:result});
     }
     catch (error) {
@@ -36,6 +38,7 @@ routes.post("/edit", async(req, res) => {
         where:{id:tempData.id}
       });
       const result = await Commodity.findOne({where:{id:tempData.id}})
+      createHistory(req.body.employeeId, 'Commodity', 'Edit', result.name);
       res.json({status:'success', result:result});
     }
     catch (error) {

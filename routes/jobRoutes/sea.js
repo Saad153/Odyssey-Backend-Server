@@ -15,6 +15,7 @@ const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const moment = require("moment");
 const { format } = require("morgan");
+const { createHistory } = require("../../functions/history");
 const Op = Sequelize.Op;
 
 const getJob = (id) => {
@@ -243,6 +244,7 @@ routes.post("/getNotes", async(req, res) => {
       where:{type: req.body.type, recordId:req.body.id},
       order:[["createdAt", "DESC"]],
     });
+    
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -267,6 +269,7 @@ routes.post('/updateNotes', async(req, res) => {
   try {
     const result =  await Job_notes.update({opened : req.body.data.opened}, 
     {where : {recordId : req.body.data.recordId}})
+    createHistory(req.body.employeeId, 'Job', 'Edit', result.name);
     res.json({ status: "success", result:result})
   }
   catch (err) {
@@ -277,6 +280,7 @@ routes.post('/updateNotes', async(req, res) => {
 routes.post("/addNote", async(req, res) => {
   try {
       const result = await Job_notes.create(req.body);
+      createHistory(req.body.employeeId, 'Job', 'Add', result.name);
       res.json({status:'success', result:result});
   }
   catch (error) {
@@ -332,6 +336,7 @@ routes.post("/create", async(req, res) => {
       jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${check==null?1:parseInt(check.jobId)+1}/26`
     }).catch((x)=>console.log(x.message))
     await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.log(x))
+    createHistory(req.body.employeeId, 'Job', 'Create', result.jobNo);
     res.json({status:'success', result:await getJob(result.id)});
   }
   catch (error) {
@@ -406,7 +411,7 @@ routes.post("/edit", async (req, res) => {
     await SE_Job.update(data, { where: { id: data.id } }).catch((x) => console.log(1));
     await SE_Equipments.destroy({ where: { SEJobId: data.id } }).catch((x) => console.log(2));
     await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id)).catch((x) => console.log(x));
-
+    createHistory(req.body.employeeId, 'Job', 'Edit', data.jobNo);
     return res.json({ status: "success", result: await getJob(data.id) });
 
   } catch (error) {
@@ -593,6 +598,10 @@ routes.post("/createBl", async(req, res) => {
         })
         await Dimensions.bulkCreate(data.Dimensions).catch((x)=>console.log(x))
       }
+      const res1 = await SE_Job.findOne({
+        where:{id: data.SEJobId}
+      })
+      createHistory(req.body.employeeId, 'BL', 'Create', res1.jobNo);
       res.json({status:'success', result:result.id });
     }else {
       console.log("Job ID:", check.dataValues.SEJobId)
@@ -603,6 +612,7 @@ routes.post("/createBl", async(req, res) => {
         attributes:["jobNo"]
       })
       console.log(job.dataValues)
+      createHistory(req.body.employeeId, 'BL', 'Create', job.jobNo);
       res.json({status:'warning', result:`Mbl or Hbl Already Exists in Job: ${job.dataValues.jobNo}` });
     }
   }
@@ -675,6 +685,10 @@ routes.post("/editBl", async(req, res) => {
     await Item_Details.destroy({ where:{id:req.body.deletingItemList} });
     await Dimensions.destroy({ where:{id:req.body.deletingDimensionsList} });
     await data.stamps?.map((x) => Stamps.upsert({...x, BlId:req.body.id}));
+    const res1 = await SE_Job.findOne({
+      where:{id:data.SEJobId}
+    })
+    createHistory(req.body.employeeId, 'BL', 'Edit', res1.jobNo);
     res.json({status:'success', result: result});   
   } 
   catch (error) {
@@ -774,10 +788,13 @@ routes.post("/deleteJob", async(req, res) => {
         SEJobId: req.body.id
       }
     })
+    const res = await SE_Job.findOne({
+      where:{id:req.body.id}
+    })
     const result = await SE_Job.destroy({
       where:{id:req.body.id},
     });
-    
+    createHistory(req.body.employeeId, 'Job', 'Delete', res.jobNo);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -801,6 +818,7 @@ routes.post("/upsertLoadingProgram", async(req, res) => {
   try {
     const result = await Loading_Program.upsert(req.body)
     .catch((x)=>console.log(x))
+    createHistory(req.body.employeeId, 'Loading Program', 'Upsert', result.name);
     res.json({status:'success', result:result});
   }
   catch (error) {
@@ -1038,6 +1056,7 @@ routes.post("/upsertDeliveryOrder", async(req, res) => {
     !req.body.id?
       check = await Delivery_Order.findOne({order: [ [ 'no', 'DESC' ]], attributes:["no"], where:{operation:req.body.operation, companyId:req.body.companyId}}):
       null
+    createHistory(req.body.employeeId, 'Delivery Order', 'Upsert', result.name);
     result = await Delivery_Order.upsert({
       ...req.body, 
       no:!req.body.id? check==null?1:parseInt(check.no)+1 : req.body.no, 
@@ -1109,7 +1128,7 @@ routes.post("/getCounts", async (req, res) => {
       })
     }
 
-
+    
     return res.json({ status: "success", result: temp });
   } catch (e) {
     console.error(e);
@@ -1469,7 +1488,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
         await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
-
+    createHistory(req.body.employeeId, 'Upload Job', 'Edit', result.name);
     res.json({ status: "success", result: jobs });
   }catch(e){
     console.log(e)
@@ -1757,7 +1776,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
         await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
-
+    
     res.json({ status: "success", result: jobs });
   }catch(e){
     console.log(e)

@@ -1,5 +1,6 @@
 const { Clients } = require("../../functions/Associations/clientAssociation");
 const routes = require('express').Router();
+const { createHistory } = require('../../functions/history');
 
 routes.post("/createNonGlParty", async(req, res) => {
     try {
@@ -52,7 +53,7 @@ routes.post("/editNonGlParty", async(req, res) => {
         value.operations = value.operations.join(', ');
         value.types = value.types.join(', ');
         const result = await Clients.update({...value, code: parseInt(value.code)},{where:{id:value.id}}).then((x)=>console.log(x))
-       
+       createHistory(req.body.employeeId, 'Non-Gl Party', 'Edit', result.name);
         res.json({status:'success', result:result})
     }
     catch (error) {
@@ -23212,6 +23213,7 @@ routes.post("/createNonglPartiesInBulk", async(req, res) => {
             value.nongl                  = "1";
             await Clients.create({...value}).catch((x)=>console.log(x))
         });
+        createHistory(req.body.employeeId, 'Non-Gl Party', 'Create', "Non-Gl Parties");
         await res.json({status:'success'});
     }
     catch (error) {
