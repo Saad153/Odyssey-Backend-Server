@@ -307,60 +307,104 @@ routes.get("/testResetSomeInvoices", async(req, res) => {
   }
 });
 
-routes.get("/getAllInvoicesByPartyId", async(req, res) => {
+// GET /getAllInvoicesByPartyId
+routes.get("/getAllInvoicesByPartyId", async (req, res) => {
   try {
-    console.log("Header", req.headers)
-    console.log("Body", req.body)
-    // account = Client_Associations;
-    // acc = await account.findOne({
-    //   where: {
-    //     ClientId: req.headers.id
-    //   }
-    // });
-    // console.log(acc.dataValues.ChildAccountId)
-    let obj = {}
-    if(req.headers.type != "agent"){
-      obj = {
-        payType: req.headers.pay
-      };
+    const {
+      id,
+      type,
+      pay,
+      invoicecurrency,
+      companyid,
+      // edit // <-- intentionally unused to preserve original behavior
+    } = req.headers;
 
+    // Build the invoice filter exactly as before
+    const where = {
+      approved: "1",
+      currency: invoicecurrency,
+      companyId: companyid,
+    };
+    if (type !== "agent") {
+      where.payType = pay;
     }
-    let account
-    account = await Client_Associations.findOne({
-      where:{
-        ClientId: parseInt(req.headers.id)
-      }
-    })
-    console.log("Account:", account)
-    const result = await Invoice.findAll({
-      where:{
-        approved:"1",
-        party_Id: account.ChildAccountId.toString(),
-        currency: req.headers.invoicecurrency,
-        companyId: req.headers.companyid,
-        ...obj
-      },
-      include:[
+
+    // 1) Association lookup (guarded)
+    const account = await Client_Associations.findOne({
+      where: { ClientId: parseInt(id, 10) },
+      attributes: ["ChildAccountId"],
+    });
+
+    if (!account || !account.ChildAccountId) {
+      return res.json({ status: "success", result: [] });
+    }
+
+    // Match original type coercion for party_Id
+    where.party_Id = String(account.ChildAccountId);
+
+    // 2) Fetch invoices + SE_Job graph (but NOT transactions here)
+    const invoices = await Invoice.findAll({
+      where,
+      subQuery: false,      // better plans with includes
+      distinct: true,       // de-dup parent rows when joins fan out
+      include: [
         {
-          model:Invoice_Transactions
+          model: SE_Job,
+          include: [
+            { model: SE_Equipments, attributes: ["qty", "size"] },
+            { model: Bl, required: false, attributes: ["mbl", "hbl"] },
+          ],
         },
-        {
-          model:SE_Job,
-          // attributes:['jobNo', 'subType', 'id', 'operation'],
-          include:[
-            { model:SE_Equipments, attributes:['qty', 'size'] },
-            { model:Bl, required: false, attributes:['mbl', 'hbl'] },
-          ]
-        }
-      ]
-    })
-    // console.log("Result",result)
-    if(req.headers.edit==false){
+      ],
+    });
+
+    if (!invoices || invoices.length === 0) {
+      return res.json({ status: "success", result: [] });
     }
-    res.json({status:'success', result:result});
+
+    // 3) Batch-load ALL transactions in ONE query and attach (avoid N+1)
+    const { Op } = require("sequelize");
+    const invoiceIds = invoices.map((inv) => inv.id);
+
+    // Detect FK name robustly (invoiceId vs InvoiceId)
+    const txFk = Invoice_Transactions.rawAttributes.invoiceId
+      ? "invoiceId"
+      : (Invoice_Transactions.rawAttributes.InvoiceId ? "InvoiceId" : null);
+
+    if (txFk) {
+      const txRows = await Invoice_Transactions.findAll({
+        where: { [txFk]: { [Op.in]: invoiceIds } },
+      });
+
+      // Group by invoice FK
+      const txMap = new Map();
+      for (const tx of txRows) {
+        const key = tx[txFk];
+        if (!txMap.has(key)) txMap.set(key, []);
+        txMap.get(key).push(tx);
+      }
+
+      // Attach using the same key name Sequelize would use for hasMany include
+      for (const inv of invoices) {
+        inv.setDataValue("Invoice_Transactions", txMap.get(inv.id) || []);
+      }
+    } else {
+      // Fallback: preserve correctness if FK name can't be detected
+      await Promise.all(
+        invoices.map(async (inv) => {
+          const list = await Invoice_Transactions.findAll({
+            where: { InvoiceId: inv.id },
+          });
+          inv.setDataValue("Invoice_Transactions", list);
+        })
+      );
+    }
+
+    // Same response shape as before
+    return res.json({ status: "success", result: invoices });
   } catch (error) {
-    console.log(error)
-    res.json({status:'error', result:error});
+    console.error(error);
+    return res.json({ status: "error", result: error });
   }
 });
 
