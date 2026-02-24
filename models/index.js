@@ -14,7 +14,7 @@ const { Client } = require('pg')
 
 let sequelize;
 // const client = "postgres://postgres:'Saad@645'@localhost:5432/odyssey"
-const client = "postgres://postgres:abc.123@localhost:5432/odyssey";
+const client = "postgres://postgres:abc.123@localhost:5432/Odyssey";
 // const connectionString = "postgresql://abdullah:ckn3lCxxtBsWY-65nwfJGA@expert-flapper-2045.7s5.cockroachlabs.cloud:26257/tech_dc_test?sslmode=verify-full"
 
 // const client = "postgresql://neondb_owner:npg_mvk8wdO1UJfG@ep-shy-waterfall-a1fkr8ks-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
