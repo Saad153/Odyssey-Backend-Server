@@ -2342,7 +2342,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
       const Client = await safeFindOne(Clients, job.ClientId);
       const AirLine = await safeFindOne(Clients, job.AirLineId);
       const OverseasAgent = await safeFindOne(Clients, job.OverseasAgentId);
-      const LocalAgent = await safeFindOne(Clients, job.LocalAgentId);
+      const LocalAgent = await safeFindOne(Clients, job.LocalVendorId);
       const CustomClearance = await safeFindOne(Clients, job.CustomClearanceId);
       const Transporter = await safeFindOne(Clients, job.TransporterId);
       const Forwarder = await safeFindOne(Clients, job.ForwarderId);
@@ -2373,7 +2373,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
         volWeight: job.Weight,
         pol: job.PortOfLoading?.UNLocCode,
         pod: job.PortOfDischarge?.UNLocCode,
-        fd: job.PortOfFinalDest?.UNLocCode,
+        fd: job.FinalDestination?.UNLocName,
         dg: job.DGNonDGId == 1 ? "DG" : "non-DG",
         subType: job.SubTypeId == 3 ? "FCL" : "LCL",
         billVol: "",
@@ -2434,6 +2434,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
         shipperId: Shipper?.id,
         airLineId: AirLine?.id,
         climaxId: job.Id,
+        flightNo: job.FlightNo,
       }
 
       const savedJob = await SE_Job.create(j)
@@ -2643,6 +2644,7 @@ routes.post("/UploadAIJobs", async (req, res) => {
         shipperId: Shipper?.id,
         airLineId: AirLine?.id,
         climaxId: job.Id,
+        flightNo: job.FlightNo,
       }
 
       const savedJob = await SE_Job.create(j)
@@ -2778,6 +2780,76 @@ routes.post("/linkCharges", async (req, res) => {
   }catch(e){
     console.error(e)
     res.json({ status: "error", result: e.toString() });
+  }
+})
+
+routes.post("/fixAirJobs", async (req, res) => {
+  let i = 0
+  try{
+    console.log("Fixing Air Jobs:", req.body.length)
+    const AirImportJob = req.body[1]
+    const AirExportJob = req.body[0]
+    console.log(AirExportJob.length)
+    console.log(AirImportJob.length)
+
+    const clients = await Clients.findAll({
+      attributes: ['id', 'climaxId'],
+      raw: true, // returns plain objects instead of model instances
+    });
+
+    const climaxToId = new Map(
+      clients
+        .filter(c => c.climaxId != null) // exclude null/undefined
+        .map(c => [c.climaxId, c.id])
+    );
+    for(let job of AirExportJob){
+      i++
+      const localVendor = climaxToId.get(job.LocalVendorId)
+      
+      const [affected] = await SE_Job.update(
+        {
+          flightNo: job.FlightNo,
+          localVendorId: localVendor,
+          cwtLine: job.ChargeableWeightLine,
+          cwtClient: job.ChargeableWeightClient,
+          weight: job.ActualWeight,
+        },
+        {
+          where: { climaxId: job.Id },
+        }
+      );
+
+      if (affected === 0) {
+        // Nothing matched the where clause
+        console.warn(`No SE_Job found for climaxId=${job.Id}`);
+      }
+    }
+
+    for(let job of AirImportJob){
+      const localVendor = climaxToId.get(job.LocalVendorId)
+      
+      const [affected] = await SE_Job.update(
+        {
+          flightNo: job.FlightNo,
+          localVendorId: localVendor,
+          cwtLine: job.ChargeableWeightLine,
+          cwtClient: job.ChargeableWeightClient,
+          weight: job.ActualWeight,
+        },
+        {
+          where: { climaxId: job.Id },
+        }
+      );
+
+      if (affected === 0) {
+        // Nothing matched the where clause
+        console.warn(`No SE_Job found for climaxId=${job.Id}`);
+      }
+    }
+    res.status(200).json({ status: 'success', result: req.body.length })
+  }catch(e){
+    console.error(e)
+    res.status(500).json({ status: 'error', result: e.message})
   }
 })
 
