@@ -2821,6 +2821,7 @@ routes.post("/fixAirJobs", async (req, res) => {
           cwtLine: job.ChargeableWeightLine,
           cwtClient: job.ChargeableWeightClient,
           weight: job.ActualWeight,
+          fd: fdMap.get(job.FinalDestinationCode)
         },
         {
           where: { climaxId: job.Id },
