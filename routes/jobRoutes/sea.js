@@ -2787,10 +2787,13 @@ routes.post("/fixAirJobs", async (req, res) => {
   let i = 0
   try{
     console.log("Fixing Air Jobs:", req.body.length)
-    const AirImportJob = req.body[1]
-    const AirExportJob = req.body[0]
+    const AirImportJob = req.body.AirImportJob
+    const AirExportJob = req.body.AirExportJob
+    const UNLocation = req.body.UNLocation
+    const AExp_BL = req.body.BL
     console.log(AirExportJob.length)
     console.log(AirImportJob.length)
+    console.log(UNLocation.length)
 
     const clients = await Clients.findAll({
       attributes: ['id', 'climaxId'],
@@ -2802,6 +2805,11 @@ routes.post("/fixAirJobs", async (req, res) => {
         .filter(c => c.climaxId != null) // exclude null/undefined
         .map(c => [c.climaxId, c.id])
     );
+
+    const fdMap = new Map(
+      UNLocation.map(l => [l.UNLocCode, l.UNLocName])
+    )
+
     for(let job of AirExportJob){
       i++
       const localVendor = climaxToId.get(job.LocalVendorId)
@@ -2846,10 +2854,143 @@ routes.post("/fixAirJobs", async (req, res) => {
         console.warn(`No SE_Job found for climaxId=${job.Id}`);
       }
     }
+
     res.status(200).json({ status: 'success', result: req.body.length })
   }catch(e){
     console.error(e)
     res.status(500).json({ status: 'error', result: e.message})
+  }
+})
+
+routes.post("/fixAEBL", async ( req, res ) => {
+  try{
+    const AExp_BL = req.body
+
+    const jobs = await SE_Job.findAll({
+      where: {
+        jobNo: {
+          [Op.like]: "%AE%"
+        }
+      }
+    })
+
+    const AEJobsMap = new Map(
+      jobs.map(j => [j.climaxId, j.id])
+    )
+
+    const jobIds = jobs.map(j => j.id);
+
+    const BLs = await Bl.findAll({
+      where: {
+        SEJobId: {
+          [Op.in]: jobIds
+        }
+      }
+    })
+
+    const AEBlsMap = new Map(
+      BLs.map(b => [b.SEJobId, b])
+    )
+
+    let i = 0
+    for(let bl of AExp_BL){
+      i++
+      let jobId = AEJobsMap.get(parseInt(bl.AEJobId))
+      let Bl = AEBlsMap.get(parseInt(jobId))
+      await Bl.update(
+        {
+          issuePlace: bl.PlaceOfIssue,
+          issueDate: bl.PlaceOfIssueDate,
+          toOne: bl.To1,
+          toTwo: bl.To2,
+          toThree: bl.To3,
+          byFirstCarrier: bl.ByFirstCarrier,
+          byOne: bl.By2,
+          byTwo: bl.By3,
+          Currency: bl.Currency,
+          charges: bl.Charges,
+          wtValPPC: bl.WTPP,
+          wtValCOLL: bl.WTCC,
+          othersPPC: bl.OtherPP,
+          othersCOLL: bl.OtherCC,
+          declareCarriage: bl.DeclareValueForCarriage,
+          declareCustoms: bl.DeclareValueForCustom,
+          insurance: bl.AmountOfInsurance,
+          handlingInfo: bl.HandlingInfo,
+          polTwo: bl.AirportOfLoading,
+          podTwo: bl.AirportOfDischarge,
+          poDeliveryTwo: bl.AirportOfFinalDest 
+        },
+        {
+          where: { id: Bl.id },
+        }
+      );
+      if(bl.NoOfPcs1 != 0){
+        await Item_Details.create({
+          noOfPcs: bl.NoOfPcs1,
+          unit: bl.UnitOfPcs1,
+          grossWt: bl.GrossWeight1,
+          kh_lb: bl.UnitOfWeightId1 == 2? 'Kg' : 'Lb',
+          r_class: bl.RateClass1,
+          itemNo: bl.ItemNumber1,
+          chargableWt: bl.ChargeableWeight1,
+          rate_charge: bl.RatePerCharge1,
+          total: bl.ItemTotal1,
+          lineWeight: bl.LineWeight1,
+          BlId: Bl.id
+        })
+      }
+      if(bl.NoOfPcs2 != 0){
+        await Item_Details.create({
+          noOfPcs: bl.NoOfPcs2,
+          unit: bl.UnitOfPcs2,
+          grossWt: bl.GrossWeight2,
+          kh_lb: bl.UnitOfWeightId2 == 2? 'Kg' : 'Lb',
+          r_class: bl.RateClass2,
+          itemNo: bl.ItemNumber2,
+          chargableWt: bl.ChargeableWeight2,
+          rate_charge: bl.RatePerCharge2,
+          total: bl.ItemTotal2,
+          lineWeight: bl.LineWeight2,
+          BlId: Bl.id
+        })
+      }
+      if(bl.NoOfPcs3 != 0){
+        await Item_Details.create({
+          noOfPcs: bl.NoOfPcs3,
+          unit: bl.UnitOfPcs3,
+          grossWt: bl.GrossWeight3,
+          kh_lb: bl.UnitOfWeightId3 == 2? 'Kg' : 'Lb',
+          r_class: bl.RateClass3,
+          itemNo: bl.ItemNumber3,
+          chargableWt: bl.ChargeableWeight3,
+          rate_charge: bl.RatePerCharge3,
+          total: bl.ItemTotal3,
+          lineWeight: bl.LineWeight3,
+          BlId: Bl.id
+        })
+      }
+      if(bl.NoOfPcs4 != 0){
+        await Item_Details.create({
+          noOfPcs: bl.NoOfPcs4,
+          unit: bl.UnitOfPcs4,
+          grossWt: bl.GrossWeight4,
+          kh_lb: bl.UnitOfWeightId4 == 2? 'Kg' : 'Lb',
+          r_class: bl.RateClass4,
+          itemNo: bl.ItemNumber4,
+          chargableWt: bl.ChargeableWeight4,
+          rate_charge: bl.RatePerCharge4,
+          total: bl.ItemTotal4,
+          lineWeight: bl.LineWeight4,
+          BlId: Bl.id
+        })
+      }
+    }
+
+    res.status(200).json({ status: 'success', result: req.body.length})
+  }catch(e){
+    console.error(e)
+    res.status(500).json({ status: 'error', result: e.message })
   }
 })
 
