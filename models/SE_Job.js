@@ -77,6 +77,13 @@ module.exports = (sequelize, DataTypes) => {
         arrivalTime  :{ type:DataTypes.STRING },
         departureDate:{ type:DataTypes.STRING },
         departureTime:{ type:DataTypes.STRING },
+    }, {
+        indexes: [
+            { fields: ["companyId", "operation"] },
+            { fields: ["companyId", "operation", "jobNo"] },
+            { fields: ["createdAt"] },
+            { fields: ["jobNo"] }
+        ]
     })
     return SE_Job;
 }

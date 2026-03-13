@@ -405,19 +405,47 @@ routes.get("/getNotifyParties", async(req, res) => {
     }
 });
 
-routes.get("/getForCharges", async(req, res) => {
-    try {
-        let obj = req.headers.id===undefined?{[Op.and]:[{nongl:{[Op.eq]:null}}]}:{[Op.and]:[{ nongl:{[Op.eq]:'0'}, id:req.headers.id }]};
-        const result = await Clients.findAll({
-            where:obj,
-            attributes:["id", "name", "person2", "person1", "mobile1", "mobile2", "address1", "address2", "types", "city", "types", "nongl"],
-            order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] 
-        });
-        res.json({status:'success', result:result});
+routes.get("/getForCharges", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  try {
+    console.log(req.headers);
+
+    let obj = {
+    [Op.or]: [
+        { nongl: '0' },
+        { nongl: null }
+    ]
+    };
+
+    if (req.headers.id) {
+    obj.id = parseInt(req.headers.id);
     }
-    catch (error) {
-      res.json({status:'error', result:error});
-    }
+
+    const result = await Clients.findAll({
+      where: obj,
+      attributes: [
+        "id",
+        "name",
+        "person2",
+        "person1",
+        "mobile1",
+        "mobile2",
+        "address1",
+        "address2",
+        "types",
+        "city",
+        "nongl"
+      ],
+      order: [["createdAt", "DESC"]]
+    });
+
+    console.log(result.length);
+
+    res.json({ status: "success", result });
+  } catch (error) {
+    res.status(500).json({ status: "error", result: error.message });
+  }
 });
 
 routes.get("/experimentalQuery", async(req, res) => {

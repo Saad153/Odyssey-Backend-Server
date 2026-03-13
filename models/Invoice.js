@@ -62,6 +62,18 @@ module.exports = (sequelize, DataTypes) => {
         note:{
             type:DataTypes.TEXT
         },
-    })
+    }, {
+        indexes: [
+            { fields: ['createdAt'] },
+            { fields: ['type'] },
+            { fields: ['payType'] },
+            { fields: ['party_Id'] },
+            { fields: ['companyId'] },
+            { fields: ['currency'] },
+            { fields: ['operation'] },
+            { fields: ['approved'] },
+        ]
+    }
+)
     return Invoice;
 }

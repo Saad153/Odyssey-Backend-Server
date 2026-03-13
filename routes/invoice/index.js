@@ -1144,7 +1144,7 @@ routes.post("/unApprove", async(req, res)=>{
         invoice_Id: req.body.id.toString()
       }
     })
-    createHistory(req.body.employeeId, 'Invoice', 'Unapprove', inv.dataValues.invoice_No);
+    createHistory(req.body.employeeId, 'Invoice', 'Unapprove', inv.invoice_No);
     res.json({status: 'success'});
   }catch(e){
     console.error(e)
@@ -1429,25 +1429,15 @@ routes.get('/testGetLastInvoice', async(req, res) => {
 // displays job data according to Invoice balance Page
 routes.get("/jobBalancing", async (req, res) => {
   try {
-    // console.log(req.headers)
     let account
-    if(req.headers.party){
-      // console.log("ID>>",req.headers.party)
+    if(req.headers.party && req.headers.party !== 'undefined'){
       account = await Client_Associations.findOne({
         where:{
           ClientId: req.headers.party
         }
       })
-      // if(!account){
-      //   account = await Vendor_Associations.findOne({
-      //     where:{
-      //       VendorId: req.headers.party
-      //     }
-      //   })
-      // }
     }
-    if(req.headers.overseasagent){
-      // console.log("ID>>",req.headers.overseasagent)
+    if(req.headers.overseasagent && req.headers.overseasagent !== 'undefined'){
       account = await Client_Associations.findOne({
         where:{
           ClientId: req.headers.overseasagent
@@ -1460,7 +1450,6 @@ routes.get("/jobBalancing", async (req, res) => {
         [Op.gte]: moment(req.headers.from).toDate(),
         [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
       },
-      // status:{ [Op.ne]: null },
       // below condition make sures to display only Job-Invoice & Job-Bill
       [Op.and]: [
         { type: { [Op.ne]: "Agent Invoice" } },
@@ -1496,6 +1485,7 @@ routes.get("/jobBalancing", async (req, res) => {
       },
       {
       model:SE_Job,
+      attributes: [ 'id', 'jobNo', 'subType', 'fd', 'freightType', 'vol', 'weight', 'arrivalDate', 'shipDate'],
       include:[
         { model:Voyage, attributes:['voyage', 'importArrivalDate', 'exportSailDate'] },
         { model:Clients, attributes:['code','name'] },
@@ -1523,7 +1513,7 @@ routes.get("/jobBalancing", async (req, res) => {
           attributes:['name']
         },
       ],
-      attributes:['id', 'weight', 'vol', 'fd', 'freightType', 'jobNo', 'operation', 'subType', 'jobDate', 'shipDate', 'arrivalDate', 'container', 'createdAt', 'fileNo', 'customerRef'],
+      // attributes:['id', 'weight', 'vol', 'fd', 'freightType', 'jobNo', 'operation', 'subType', 'jobDate', 'shipDate', 'arrivalDate', 'container', 'createdAt', 'fileNo', 'customerRef'],
       
     }]
 
@@ -1543,93 +1533,6 @@ routes.get("/jobBalancing", async (req, res) => {
     res.json({ status: "error", result: error });
   }
 });
-
-// this below api is just a copy of the above api just it's specifically for Agent-Invoices/Agent-Bills only
-// routes.get("/invoiceBalancing", async (req, res) => {
-//   try {
-//     let invoiceObj = {
-//       createdAt: {
-//         [Op.gte]: moment(req.headers.from).toDate(),
-//         [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
-//       },
-//       // status:{ [Op.ne]: null },
-//       [Op.and]: [
-//         { type: { [Op.ne]: "Job Invoice" } },
-//         { type: { [Op.ne]: "Old Job Invoice" } },
-//         { type: { [Op.ne]: "Job Bill" } },
-//         { type: { [Op.ne]: "Old Job Bill" } },
-//       ]
-//     };
-//     if(req.headers.paytype!="All"){
-//       invoiceObj.payType=req.headers.paytype
-//     }
-//     if(req.headers.company=='4'){
-//       invoiceObj = {
-//         ...invoiceObj,
-//         [Op.or]: [{companyId: '1'}, {companyId:'3'}]
-//       }
-//     } else {
-//       req.headers.company?invoiceObj.companyId=req.headers.company:null;
-//     }
-//     let accountObj
-//     if(req.headers.company=='4'){
-//       accountObj = {
-//         [Op.or]: [{CompanyId: '1'}, {CompanyId:'3'}]
-//       }
-//     } else {
-//       req.headers.company?accountObj.CompanyId=req.headers.company:null;
-//     }
-//     console.log(accountObj)
-//     let account
-//     if(req.headers.overseasagent){
-//       account = await Vendor_Associations.findAll({
-//         where: {
-//           ...accountObj,
-//           VendorId: req.headers.overseasagent
-//         }
-//       })
-//     }
-//     console.log("Account", account.dataValues)
-//     account?invoiceObj.party_Id=account.ChildAccountId:null;
-//     const result = await Invoice.findAll({
-//       where:invoiceObj,
-//       attributes:['id', 'invoice_No', 'payType', 'currency', 'ex_rate', 'roundOff', 'total', 'paid', 'recieved', 'createdAt', 'party_Name', 'companyId'],
-//       include:[{
-//         model:SE_Job,
-//         include:[
-//           { model: Clients, as:'shipper', attributes:['name'] },
-//           { model: Clients, as:'Client', attributes:['name'] },
-//           { model: Vessel, as:'vessel', attributes:['name'] },
-//           { model: Voyage, as:'Voyage', attributes:['voyage'] },
-
-//           {
-//             model: Employees,
-//             as:'sales_representator', 
-//             attributes:['name']
-//           },
-//           {
-//             model:Bl,
-//             attributes:['hbl', 'mbl'],
-//           },
-//           {
-//             model:SE_Equipments,
-//             attributes:['qty', 'size']
-//           }
-//         ],
-//         order: [[ 'createdAt', 'ASC' ]],
-//         attributes:['id', 'fd', 'freightType', 'jobNo', 'operation', 'subType', 'vol', 'weight', 'container', 'customerRef', 'fileNo', 'arrivalDate', 'shipDate'],
-//       },
-//       {
-//         model:Charge_Head,
-//       }]
-
-//     });
-//     await res.json({ status: "success", result: result });
-//   } catch (error) {
-//     console.log(error)
-//     res.json({ status: "error", result: error });
-//   }
-// });
 
 routes.get("/invoiceBalancing", async (req, res) => {
   try {
@@ -1666,9 +1569,6 @@ routes.get("/invoiceBalancing", async (req, res) => {
     console.log("InvoiceObj:", invoiceObj);
     const result = await Invoice.findAll({
       where: invoiceObj,
-      // where: {
-      //   party_Id: req.headers.overseasagent
-      // },
       attributes: [
         "id", "invoice_No", "payType", "currency", "ex_rate", "roundOff", 
         "total", "paid", "recieved", "createdAt", "party_Name", "companyId"

@@ -59,7 +59,8 @@ routes.get('/getHistory', async(req, res) => {
                 model: Employees,
                 as: 'Employee',
                 attributes: ['name']
-            }
+            },
+            order: [['createdAt', 'DESC']]
         });
         res.json({status:'success', result:result});
     }
