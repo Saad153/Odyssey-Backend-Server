@@ -12,6 +12,7 @@ const { Accounts, sequelize, Direct_Job, Direct_Job_Association } = require('../
 const db = require("../../models/");
 const { Op, literal } = Sequelize;
 const { createHistory } = require('../../functions/history');
+const e = require("express");
 
 //Voucher Types
 // (For Jobs)
@@ -258,36 +259,28 @@ routes.post("/deleteVoucher", async (req, res) => {
 
 routes.get("/getAccountActivity", async (req, res) => {
   try {
-    const { debitaccount, creditaccount } = req.headers;
+    const debitaccount = req.headers.debitaccount || "";
+    const creditaccount = req.headers.creditaccount || "";
+    console.log(debitaccount, typeof(debitaccount))
+    console.log(creditaccount, typeof(creditaccount))
     let obj = {};
-    if (debitaccount != "" && creditaccount == "") {
-      obj = { ChildAccountId: debitaccount, type: "debit" };
-    } else if (debitaccount == "" && creditaccount != "") {
-      obj = { ChildAccountId: creditaccount, type: "credit" };
-    } else if (debitaccount != "" && creditaccount != "") {
+    if (debitaccount && creditaccount) {
       obj = {
         [Op.or]: [
           { ChildAccountId: debitaccount, type: "debit" },
           { ChildAccountId: creditaccount, type: "credit" },
         ],
       };
-    } else if (debitaccount == "" && creditaccount == "") {
+    } else if (debitaccount) {
+      obj = { ChildAccountId: debitaccount, type: "debit" };
+    } else if (creditaccount) {
+      obj = { ChildAccountId: creditaccount, type: "credit" };
+    } else {
       obj = {};
     }
-    const resultOne = await Voucher_Heads.findAll({
-      where: obj,
-      include: [{ model: Vouchers }],
-    });
-    let items = [];
-    resultOne.forEach((x) => {
-      items.push(x.dataValues.Voucher.voucher_Id)
-    });
-
-    let voucherIds = [...new Set(items)];
     const result = await Vouchers.findAll({
       attributes: ["voucher_Id", "currency", "exRate", "createdAt"],
       where: {
-        voucher_Id: voucherIds,
         createdAt: {
           [Op.gte]: moment(req.headers.from).toDate(),
           [Op.lte]: moment(req.headers.to).add(1, "days").toDate(),
@@ -296,6 +289,8 @@ routes.get("/getAccountActivity", async (req, res) => {
       include: [
         {
           model: Voucher_Heads,
+          where: obj,
+          required: true,
           attributes: ["amount", "type", "defaultAmount"],
           include: [
             {
@@ -309,6 +304,7 @@ routes.get("/getAccountActivity", async (req, res) => {
     });
     await res.json({ status: "success", result: result });
   } catch (error) {
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });

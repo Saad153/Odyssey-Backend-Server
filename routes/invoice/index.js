@@ -1555,7 +1555,7 @@ routes.get("/invoiceBalancing", async (req, res) => {
       invoiceObj.companyId = req.headers.company;
     }
     let account = [];
-    if (req.headers.overseasagent) {
+    if (req.headers.overseasagent && req.headers.overseasagent != 'undefined') {
       account = await Client_Associations.findOne({
         where: {
           ClientId: req.headers.overseasagent,

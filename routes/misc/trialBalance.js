@@ -78,7 +78,7 @@ routes.get(`/${url}/get`, async (req, res) => {
   try {
 
     const obj = {};
-    if (req.headers.accountid) {
+    if (req.headers.accountid && req.headers.accountid !== 'null') {
       obj.id = req.headers.accountid;
     }
     

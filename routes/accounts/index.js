@@ -325,13 +325,13 @@ routes.post("/editParentAccount", async(req, res) => {
 
 routes.post("/editChildAccount", async(req, res) => {
 
-  const {id, title, CompanyId, employeeId} = req.body
+  const {id, title, CompanyId, employeeId, parentId} = req.body
   try {
-    const result = await Child_Account.findOne({where:{title}})
+    const result = await Child_Account.findOne({where:{title, id: { [Op.ne]: id } }})
     if(result){
       res.json({status:'exists', result:result});
     }else{
-      await Child_Account.update({title:title},{where:{id:id}})
+      await Child_Account.update({title:title, ChildAccountId: parentId},{where:{id:id}})
       let val;
       val = await getAllAccounts(CompanyId);
       createHistory(employeeId, 'Account', 'Edit', title);
@@ -339,6 +339,7 @@ routes.post("/editChildAccount", async(req, res) => {
     }
   }
   catch (error) {
+    console.error(error)
     res.send({status:'error', result:error});
   }
 });
