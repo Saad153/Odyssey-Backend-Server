@@ -213,7 +213,7 @@ routes.get("/getValues", async(req, res) => {
     });
     const Sr = await Employees.findAll({where:{represent: {[Op.substring]: 'sr'} }, attributes:['id', 'name']});
     let tempChargeList = [];
-    const charges = await Charges.findAll({});
+    const charges = await Charges.findAll({where: {status:true}});
     await charges.forEach((x) => {
       tempChargeList.push({...x.dataValues, label:`(${x.dataValues.code}) ${x.dataValues.short}`, value:x.dataValues.id});
     });

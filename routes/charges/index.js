@@ -1,4 +1,4 @@
-const { Charges } = require("../../models");
+const { Charges, Charge_Head } = require("../../models");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const Op = Sequelize.Op;
@@ -47,6 +47,35 @@ routes.post("/edit", async(req, res) => {
     res.json({status:'error', result:error});
   }
 });
+
+routes.post("/delete", async(req, res) => {
+  try {
+    const charge = await Charges.findOne({where:{id:req.body.id}});
+    const result = await Charge_Head.findOne({where:{charge:req.body.id.toString()}});
+    if(result){
+      res.json({status:'exists'});
+    }else{
+      await Charges.destroy({where:{id:req.body.id}});
+      createHistory(req.body.employeeId, 'Charge', 'Delete', charge.name);
+      res.json({status:'success' });
+    }
+  }catch(e){
+    console.log(e)
+    res.json({status:'error', result:e});
+  }
+})
+
+routes.post("/status", async(req, res) => {
+  try {
+    const charge = await Charges.findOne({where:{id:req.body.id}});
+    const result = await Charges.update({status:!charge.status}, {where:{id:req.body.id}});
+    createHistory(req.body.employeeId, 'Charge', 'Delete', charge.name);
+    res.json({status:'success' });
+  }catch(e){
+    console.log(e)
+    res.json({status:'error', result:e});
+  }
+})
 
 //getAllCharges
 routes.get("/get", async(req, res) => {

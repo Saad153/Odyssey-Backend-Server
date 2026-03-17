@@ -61,6 +61,10 @@ module.exports = (sequelize, DataTypes) => {
             type:DataTypes.DOUBLE,  
             defaultValue:0.0
         },
+        status:{
+            type:DataTypes.BOOLEAN,
+            defaultValue: true
+        },
     })
     return Charges;
 }
