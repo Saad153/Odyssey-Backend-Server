@@ -178,14 +178,26 @@ routes.post("/createClient", async (req, res) => {
           transaction: t
         });
 
+        // const maxCode = await Child_Account.findOne({
+        //   attributes: [
+        //     [Sequelize.fn('MAX', Sequelize.cast(Sequelize.col('code'), 'INTEGER')), 'maxCode']
+        //   ],
+        //   where: {
+        //     ChildAccountId: accounts.id
+        //   },
+        //   transaction: t
+        // });
+
         const maxCode = await Child_Account.findOne({
-          attributes: [
+        attributes: [
             [Sequelize.fn('MAX', Sequelize.cast(Sequelize.col('code'), 'INTEGER')), 'maxCode']
-          ],
-          where: {
-            ChildAccountId: accounts.id
-          },
-          transaction: t
+        ],
+        where: {
+            ChildAccountId: accounts.id,
+            code: { [Op.regexp]: '^[0-9]+$' } // <-- only numeric codes
+        },
+        transaction: t,
+        raw: true
         });
 
         console.log("Max Code: ", maxCode.maxCode);
@@ -194,14 +206,14 @@ routes.post("/createClient", async (req, res) => {
           title: result.name,
           subCategory: 'Customer',
           editable: false,
-          code: maxCode.maxCode + 1,
+          code: maxCode.maxCode + 1 || 1,
           ChildAccountId: accounts.id
         }, { transaction: t });
 
-        await Client_Associations.bulkCreate(
-          createAccountList(accounts, accountsList, result.id),
-          { transaction: t }
-        );
+        // await Client_Associations.bulkCreate(
+        //   createAccountList(accounts, accountsList, result.id),
+        //   { transaction: t }
+        // );
       }
 
       // Non-DB side-effect; left as-is (doesn't need transaction, but fine to keep)
