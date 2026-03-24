@@ -304,24 +304,26 @@ routes.post("/editClient", async (req, res) => {
         { where: { id: value.id }, transaction: t }
       );
 
-      const pAccountList = await Child_Account.findOne({
-        where: { id: req.body.pAccountName },
-        transaction: t
-      });
-
       const clientAssociation = await Client_Associations.findOne({
         where: { ClientId: value.id },
         transaction: t
       });
 
-      if (clientAssociation) {
-        await Child_Account.update(
-          {
-            title: value.name,
-            ChildAccountId: pAccountList.id
-        },
-          { where: { id: clientAssociation.ChildAccountId }, transaction: t }
-        );
+      if (clientAssociation && req.body.pAccountName) {
+        const pAccountList = await Child_Account.findOne({
+          where: { id: req.body.pAccountName },
+          transaction: t
+        });
+        
+        if (pAccountList) {
+          await Child_Account.update(
+            {
+              title: value.name,
+              ChildAccountId: pAccountList.id
+            },
+            { where: { id: clientAssociation.ChildAccountId }, transaction: t }
+          );
+        }
       }
 
       // Side-effect (non-transactional), preserved exactly as you had it
