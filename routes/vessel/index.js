@@ -58,6 +58,7 @@ routes.post("/createVoyage", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.log(error)
     res.json({status:'error', result:error});
   }
 });
