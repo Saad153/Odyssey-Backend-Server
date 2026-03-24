@@ -564,20 +564,55 @@ routes.get("/getAllParents", async(req, res) => {
   }
 });
 
-routes.get("/getAllParentswithChildsbyAccountId", async(req, res) => {
-  try{
-    const result = await Parent_Account.findAll({
-      attributes:["title", "id", "code", "AccountId"],
-      where:{CompanyId:req.headers.companyid},
-      include:[{
-        model:Child_Account,
-        attributes:["title", "id", "code"],
-      }]
-    })
-    res.json({status: 'success', result: result})
-  }
-  catch (error) {
+// routes.get("/getAllParentswithChildsbyAccountId", async(req, res) => {
+//   try {
+//     // const accountId = req.headers.accountid || req.query.accountId || req.body.accountId;
+//     // const companyId = req.headers.companyid || req.query.companyId || req.body.companyId;
 
+//     const whereClause = {};
+//     // if (accountId) whereClause.AccountId = accountId;
+//     // if (companyId) whereClause.CompanyId = companyId;
+
+//     const result = await Child_Account.findAll({
+//       attributes: ["title", "id", "code"],
+//       where: whereClause,
+//       include: [{
+//         model: Child_Account,
+//         as: 'children',
+//         attributes: ["title", "id", "code"],
+//         required: false
+//       }],
+//       order: [['id', 'ASC']]
+//     });
+
+//     res.json({status: 'success', result});
+//   } catch (error) {
+//     console.error('getAllParentswithChildsbyAccountId error:', error);
+//     res.status(500).json({status: 'error', result: error.message || error});
+//   }
+// });
+
+routes.get("/getAllParentswithChildsbyAccountId", async (req, res) => {
+  try {
+    const whereClause = { ChildAccountId: null }; // root parents only
+
+    const result = await Child_Account.findAll({
+      attributes: ["title", "id", "code"],
+      where: whereClause,
+      include: [{
+        model: Child_Account,
+        as: "children",
+        attributes: ["title", "id", "code"],
+        required: false,
+      }],
+      order: [["id", "ASC"]],
+    });
+    console.log("Where:", whereClause, "Found:", result.length);
+    res.json({ status: "success", result });
+  } catch (error) {
+    
+    console.error("getAllParentswithChildsbyAccountId error:", error);
+    res.status(500).json({ status: "error", result: error.message || error });
   }
 });
 
