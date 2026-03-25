@@ -908,6 +908,14 @@ routes.post("/makeInvoiceNew", async(req, res) => {
 
 routes.post("/openingInvoice", async(req, res) => {
   try{
+
+    if (!req.body.date || !moment(req.body.date, moment.ISO_8601, true).isValid()) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid date received"
+      });
+    }
+    const createdAt = moment(req.body.date).toDate();
     const lastOI = await Invoice.findOne({where:{type:'Opening Invoice'},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
     const lastOB = await Invoice.findOne({where:{type:'Opening Bill'},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
     // console.log(req.body)
@@ -929,7 +937,7 @@ routes.post("/openingInvoice", async(req, res) => {
       total: req.body.amount,
       approved: 0,
       companyId: req.body.companyId,
-      createdAt: req.body.date,
+      createdAt: createdAt,
       SE_JobId: null,
       payType: req.body.payType,
       partyType: req.body.partyType
@@ -1014,9 +1022,9 @@ routes.post("/openingInvoice", async(req, res) => {
       createdAt: invoices.dataValues.createdAt
     })
 
-    await Voucher_Head.map(async(x)=>{
-      await Voucher_Heads.create(x)
-    })
+    await Promise.all(
+      Voucher_Head.map(x => Voucher_Heads.create(x))
+    );
 
     await Invoice.update(
         {
@@ -1028,7 +1036,7 @@ routes.post("/openingInvoice", async(req, res) => {
             }
         }
     );
-  
+    
     createHistory(req.body.employeeId, 'Invoice', 'Approve', req.body.invoice_No);
     res.json({status:'success', result:{invoices}});
   }catch(e){
