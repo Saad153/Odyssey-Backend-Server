@@ -1756,7 +1756,8 @@ routes.post("/saveDirectJob", async (req, res) => {
 
     await sequelize.transaction(async (t) => {
       // 1️⃣ Determine if this is an update or create
-      const isUpdate = !!direct_Job.id;
+      const jobId = parseInt(direct_Job.id);
+      const isUpdate = !isNaN(jobId);
 
       if (isUpdate) {
         // 🔹 UPDATE
@@ -1885,7 +1886,7 @@ routes.post("/saveDirectJob", async (req, res) => {
       }, { transaction: t });
 
     });
-    createHistory(req.body.employeeId, 'Direct Job', 'Create', result.name);
+    createHistory(req.body.employeeId, 'Direct Job', 'Create', dJob.Entry_No);
     res.json({ status: "success", result: { Entry_Number: dJob.Entry_No, Voucher_Number: Voucher.voucher_Id, id: dJob.id } });
 
   } catch (e) {
