@@ -214,7 +214,11 @@ routes.post("/createClient", async (req, res) => {
         //   createAccountList(accounts, accountsList, result.id),
         //   { transaction: t }
         // );
-      }
+        await Client_Associations.create({
+          ClientId: result.id,
+          ChildAccountId: account.id,
+        }, { transaction: t });
+        }
 
       // Non-DB side-effect; left as-is (doesn't need transaction, but fine to keep)
       createHistory(req.body.employeeId, 'Client', 'Create', result.name);
@@ -380,7 +384,7 @@ routes.get("/getClientById", async(req, res) => {
             where:{id:req.headers.id},
             include:[{
                 model:Client_Associations,
-                required:false,
+                // required:false,
                 attributes:['id'],
                 include:[{
                     // where:{CompanyId:1},
