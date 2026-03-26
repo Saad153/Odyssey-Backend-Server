@@ -718,4 +718,16 @@ routes.post("/bulkCreate", async (req, res) => {
   }
 });
 
+routes.get("/getClientsForBackup", async (req, res) => {
+    try{
+        const clients = await Clients.findAll({
+            attributes: [ 'id', 'climaxId' ]
+        })
+        res.status(200).json({ status: 'success', result: clients})
+    }catch(e){
+        console.error(e)
+        res.status(500).json({ status: 'error', result: e.message })
+    }
+})
+
 module.exports = routes;

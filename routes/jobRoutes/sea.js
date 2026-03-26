@@ -2863,6 +2863,86 @@ routes.post("/fixAirJobs", async (req, res) => {
   }
 })
 
+routes.post("/fixSeaJobs", async (req, res) => {
+  let i = 0
+  try{
+    console.log("Fixing Sea Jobs:", req.body.length)
+    // const SeaImportJob = req.body.SeaImportJob
+    const SeaExportJob = req.body.SeaExportJob
+    const UNLocation = req.body.UNLocation
+    // const AExp_BL = req.body.BL
+    console.log(SeaExportJob.length)
+    // console.log(SeaImportJob.length)
+    console.log(UNLocation.length)
+
+    // const clients = await Clients.findAll({
+    //   attributes: ['id', 'climaxId'],
+    //   raw: true, // returns plain objects instead of model instances
+    // });
+
+    // const climaxToId = new Map(
+    //   clients
+    //     .filter(c => c.climaxId != null) // exclude null/undefined
+    //     .map(c => [c.climaxId, c.id])
+    // );
+
+    const fdMap = new Map(
+      UNLocation.map(l => [l.UNLocCode, l.UNLocName])
+    )
+
+    for(let job of SeaExportJob){
+      i++
+      // const localVendor = climaxToId.get(job.LocalVendorId)
+      
+      const [affected] = await SE_Job.update(
+        {
+          // flightNo: job.FlightNo,
+          // localVendorId: localVendor,
+          // cwtLine: job.ChargeableWeightLine,
+          // cwtClient: job.ChargeableWeightClient,
+          // weight: job.ActualWeight,
+          fd: fdMap.get(job.FinalDestinationCode)
+        },
+        {
+          where: { climaxId: job.Id },
+        }
+      );
+
+      if (affected === 0) {
+        // Nothing matched the where clause
+        console.warn(`No SE_Job found for climaxId=${job.Id}`);
+      }
+    }
+
+    // for(let job of AirImportJob){
+    //   const localVendor = climaxToId.get(job.LocalVendorId)
+      
+    //   const [affected] = await SE_Job.update(
+    //     {
+    //       flightNo: job.FlightNo,
+    //       localVendorId: localVendor,
+    //       cwtLine: job.ChargeableWeightLine,
+    //       cwtClient: job.ChargeableWeightClient,
+    //       weight: job.ActualWeight,
+    //     },
+    //     {
+    //       where: { climaxId: job.Id },
+    //     }
+    //   );
+
+    //   if (affected === 0) {
+    //     // Nothing matched the where clause
+    //     console.warn(`No SE_Job found for climaxId=${job.Id}`);
+    //   }
+    // }
+
+    res.status(200).json({ status: 'success', result: req.body.length })
+  }catch(e){
+    console.error(e)
+    res.status(500).json({ status: 'error', result: e.message})
+  }
+})
+
 routes.post("/fixAEBL", async ( req, res ) => {
   try{
     const AExp_BL = req.body
@@ -2992,6 +3072,17 @@ routes.post("/fixAEBL", async ( req, res ) => {
   }catch(e){
     console.error(e)
     res.status(500).json({ status: 'error', result: e.message })
+  }
+})
+
+routes.post("/uploadLogJobs", async (req, res) => {
+  try{
+    console.log("Upload Log Jobs:", req.body.length)
+    await SE_Job.bulkCreate(req.body)
+    res.status(200).json({ status: 'success' })
+  }catch(e){
+    console.error(e)
+    res.status(500).json({ status: 'Error', result: e.message})
   }
 })
 

@@ -47,27 +47,30 @@ routes.post("/edit", async(req, res) => {
 });
 
 routes.post("/uploadCommodities", async (req, res) => {
+  let  i = 0
     try{
-        console.log(req.body.length)
+        console.log(req.body.Commodities.length)
         for(let c of req.body.Commodities){
+          i++
             await Commodity.create({
-              name: c.CommodityName,
-              hs: c.HSCode,
-              cargoType: c.CCargoTypeID=='1'?'GI':'CAR',
+              name: c.HsDescription,
+              hs: c.HsCode,
+              cargoType: '',
               commodityGroup: '',
-              isHazmat: c.HazmatCode==''?'0':'1',
+              isHazmat: '',
               packageGroup: '',
               hazmatCode: '',
               hazmatClass: '',
               chemicalName: '',
               unoCode: '',
               active: '',
-              climaxId: c.Id
+              climaxId: c.HsCode
             })
         }
         res.status(200).json({status:'success'});
     }catch(e){
         console.error(e)
+        console.error(i)
         res.status(400).json({status:'error', result:e});
     }
 })
