@@ -392,7 +392,7 @@ routes.get("/getClientById", async(req, res) => {
                     model:Child_Account,
                     include:[{
                         model:Child_Account,
-                        as: 'children'
+                        as: 'parent'
                     }]
                 }]
             }]
