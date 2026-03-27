@@ -347,48 +347,210 @@ routes.get("/testgetAll", async (req, res) => {
   }
 });
 
+// routes.get("/getAllJobPayRecVouchers", async (req, res) => {
+//   try {
+//     const page = parseInt(req.headers.page) || 1;
+//     const limit = parseInt(req.headers.limit) || 50;
+//     const search = (req.headers.search || "").trim()
+//     const offset = (page - 1) * limit;
+
+//     const isValidDate = !isNaN(Date.parse(search));
+
+//     const searchCondition = search
+//       ? {
+//           [Op.or]: [
+//             { voucher_No: { [Op.ilike]: `%${search}%` } },
+//             { voucher_Id: { [Op.ilike]: `%${search}%` } },
+//             { partyName: { [Op.ilike]: `%${search}%` } },
+//             { type: { [Op.ilike]: `%${search}%` } },
+//             { currency: { [Op.ilike]: `%${search}%` } },
+//             ...(isValidDate
+//               ? [{ tranDate: new Date(search) }]
+//               : [])
+//           ]
+//         }
+//       : {};
+
+//     // Get total count for pagination
+//     const total = await Vouchers.count({
+//       where: {
+//         CompanyId: req.headers.companyid,
+//         vType: { [Op.notIn]: ["OP", "SI", "PI", "OI", "OB"] },
+//         type: { [Op.in]: ["Job Payment", "Job Reciept"] },
+//         ...searchCondition
+//       },
+//     });
+
+//     // Fetch only the records for the current page    
+//     const result = await Vouchers.findAll({
+//       order: [["createdAt", "DESC"]],
+//       where: {
+//         CompanyId: req.headers.companyid,
+//         vType: { [Op.notIn]: ["OP", "SI", "PI", "OI", "OB"] },
+//         type: { [Op.in]: ["Job Payment", "Job Reciept"] },
+//         ...searchCondition
+//       },
+//       include: [
+//         { model: Invoice_Transactions },
+//         {
+//           model: Voucher_Heads,
+//           attributes: ["type", "amount", "accountType", "ChildAccountId"],
+//           // required: false,
+//           where: search
+//             ? { amount: { [Op.like]: `%${search}%` } }
+//             : undefined
+//         }
+//       ],
+//       limit,
+//       offset,
+//     });
+
+//     const partyIds = result
+//       .map(v => v.dataValues.partyId)
+//       .filter(Boolean);
+
+//     if (partyIds.length) {
+//       const clientAssociations = await Client_Associations.findAll({
+//         where: { ClientId: { [Op.in]: partyIds } }
+//       });
+
+//       const clientMap = {};
+//       clientAssociations.forEach(ca => {
+//         clientMap[ca.ClientId] = ca;
+//       });
+
+//       result.forEach(voucher => {
+//         voucher.dataValues.clientAssociation =
+//           clientMap[voucher.dataValues.partyId] || null;
+//       });
+//     }
+
+//     let invoice = [];
+//     result.forEach((x) => {
+//       x.dataValues.invoices?.split(",").forEach((y) => {
+//         if (y) invoice.push(y);
+//       });
+//     });
+
+//     const invoices = await Invoice.findAll({
+//       where: { id: { [Op.in]: invoice } },
+//       include: [
+//         {
+//           model: SE_Job,
+//           include: [
+//             { model: SE_Equipments, attributes: ["qty", "size"] },
+//             { model: Bl, required: false, attributes: ["mbl", "hbl"] },
+//           ],
+//         },
+//         { model: Invoice_Transactions },
+//       ],
+//     });
+
+//     result.forEach((x) => {
+//       const inv = invoices
+//         .filter((y) => x.dataValues.invoices?.includes(y.dataValues.id))
+//         .map((y) => ({ ...y.dataValues }));
+//       x.dataValues.invoice = inv;
+//     });
+
+//     res.json({
+//       status: "success",
+//       result: result,
+//       total,
+//       page,
+//       totalPages: Math.ceil(total / limit),
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     res.json({ status: "error", result: error });
+//   }
+// });
+
 routes.get("/getAllJobPayRecVouchers", async (req, res) => {
   try {
-    const page = parseInt(req.headers.page) || 1;
-    const limit = parseInt(req.headers.limit) || 50;
+    // -------------------------
+    // Pagination & Search
+    // -------------------------
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const offset = (page - 1) * limit;
+    const search = (req.query.search || "").trim();
+    const companyId = req.query.companyid;
 
-    // Get total count for pagination
-    const total = await Vouchers.count({
-      where: {
-        CompanyId: req.headers.companyid,
-        vType: { [Op.notIn]: ["OP", "SI", "PI", "OI", "OB"] },
-        type: { [Op.in]: ["Job Payment", "Job Reciept"] },
-      },
-    });
+    // -------------------------
+    // Build Search Condition
+    // -------------------------
+    
+    const isValidDate = !isNaN(Date.parse(search));
+    const isNumeric = !isNaN(Number(search));
 
-    // Fetch only the records for the current page
-    const result = await Vouchers.findAll({
-      order: [["createdAt", "DESC"]],
-      where: {
-        CompanyId: req.headers.companyid,
-        vType: { [Op.notIn]: ["OP", "SI", "PI", "OI", "OB"] },
-        type: { [Op.in]: ["Job Payment", "Job Reciept"] },
-      },
-      include: [
-        { model: Invoice_Transactions },
-        {
-          model: Voucher_Heads,
-          attributes: ["type", "amount", "accountType", "ChildAccountId"],
-        },
-      ],
-      limit,
-      offset,
-    });
+    const searchCondition = search
+      ? {
+          [Op.or]: [
+            // TEXT FIELDS ✅
+            { voucher_Id: { [Op.iLike]: `%${search}%` } },
+            { partyName: { [Op.iLike]: `%${search}%` } },
+            { type: { [Op.iLike]: `%${search}%` } },
+            { currency: { [Op.iLike]: `%${search}%` } },
 
+            // INTEGER → TEXT CAST ✅
+            ...(isNumeric
+              ? [
+                  Sequelize.where(
+                    Sequelize.cast(
+                      Sequelize.col("Vouchers.voucher_No"),
+                      "TEXT"
+                    ),
+                    { [Op.iLike]: `%${search}%` }
+                  )
+                ]
+              : []),
+
+            // DATE (NO ILIKE) ✅
+            ...(isValidDate
+              ? [{ tranDate: new Date(search) }]
+              : [])
+          ]
+        }
+      : {};
+
+    // -------------------------
+    // Query (find + count)
+    // -------------------------
+    const { count: total, rows: result } =
+      await Vouchers.findAndCountAll({
+        order: [["createdAt", "DESC"]],
+        distinct: true,    
+        where: {
+            CompanyId: companyId,
+            vType: { [Op.notIn]: ["OP", "SI", "PI", "OI", "OB"] },
+            type: { [Op.in]: ["Job Payment", "Job Reciept"] },
+            ...searchCondition
+          },
+        include: [
+          { model: Invoice_Transactions },
+          {
+            model: Voucher_Heads,
+            attributes: ["type", "amount", "accountType", "ChildAccountId"],
+            required: false
+          }
+        ],
+        limit,
+        offset
+      });
+
+    // -------------------------
+    // Attach Client Association
+    // -------------------------
     const partyIds = result
       .map(v => v.dataValues.partyId)
       .filter(Boolean);
 
     if (partyIds.length) {
-      const clientAssociations = await Client_Associations.findAll({
-        where: { ClientId: { [Op.in]: partyIds } }
-      });
+      const clientAssociations =
+        await Client_Associations.findAll({
+          where: { ClientId: { [Op.in]: partyIds } }
+        });
 
       const clientMap = {};
       clientAssociations.forEach(ca => {
@@ -401,47 +563,67 @@ routes.get("/getAllJobPayRecVouchers", async (req, res) => {
       });
     }
 
-    let invoice = [];
-    result.forEach((x) => {
-      x.dataValues.invoices?.split(",").forEach((y) => {
-        if (y) invoice.push(y);
-      });
+    // -------------------------
+    // Collect Invoice IDs
+    // -------------------------
+    const invoiceIds = [];
+    result.forEach(v => {
+      v.dataValues.invoices
+        ?.split(",")
+        .forEach(id => id && invoiceIds.push(id));
     });
 
-    const invoices = await Invoice.findAll({
-      where: { id: { [Op.in]: invoice } },
-      include: [
-        {
-          model: SE_Job,
+    // -------------------------
+    // Fetch Invoices
+    // -------------------------
+    const invoices = invoiceIds.length
+      ? await Invoice.findAll({
+          where: { id: { [Op.in]: invoiceIds } },
           include: [
-            { model: SE_Equipments, attributes: ["qty", "size"] },
-            { model: Bl, required: false, attributes: ["mbl", "hbl"] },
-          ],
-        },
-        { model: Invoice_Transactions },
-      ],
+            {
+              model: SE_Job,
+              include: [
+                { model: SE_Equipments, attributes: ["qty", "size"] },
+                { model: Bl, required: false, attributes: ["mbl", "hbl"] }
+              ]
+            },
+            { model: Invoice_Transactions }
+          ]
+        })
+      : [];
+
+    // -------------------------
+    // Attach Invoices to Vouchers
+    // -------------------------
+    result.forEach(voucher => {
+      const invList = invoices
+        .filter(inv =>
+          voucher.dataValues.invoices?.includes(inv.id.toString())
+        )
+        .map(inv => inv.dataValues);
+
+      voucher.dataValues.invoice = invList;
     });
 
-    result.forEach((x) => {
-      const inv = invoices
-        .filter((y) => x.dataValues.invoices?.includes(y.dataValues.id))
-        .map((y) => ({ ...y.dataValues }));
-      x.dataValues.invoice = inv;
-    });
-
+    // -------------------------
+    // Final Response
+    // -------------------------
     res.json({
       status: "success",
-      result: result,
+      result,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit)
     });
   } catch (error) {
-    console.log(error);
-    res.json({ status: "error", result: error });
+    console.error(error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to fetch vouchers",
+      error
+    });
   }
 });
-
 
 routes.get("/getVoucherById", async (req, res) => {
   try {

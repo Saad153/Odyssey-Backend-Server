@@ -255,7 +255,6 @@ routes.post("/getNotes", async(req, res) => {
 routes.get("/getAllNotes", async(req, res) => {
   try {
     const result = await Job_notes.findAll({
-      // where:{type:"SE", recordId:req.body.id},
       order:[["createdAt", "DESC"]],
     });
     res.json({status:'success', result:result});
@@ -313,11 +312,6 @@ routes.post("/create", async(req, res) => {
     } else {
       data.airLineId=null
     }
-    // console.log("Data Operation:",data.operation)
-    // const check = await SE_Job.findOne({
-    //   order:[['jobId','DESC']], attributes:["jobId"],
-    //   where:{operation:data.operation, companyId:data.companyId.toString()}
-    // });
     const check = await SE_Job.findOne({
       order: [['jobId', 'DESC']],
       attributes: ['jobId'],
@@ -344,41 +338,6 @@ routes.post("/create", async(req, res) => {
     res.json({status:'error', result:error});
   }
 });
-
-// routes.post("/edit", async(req, res) => {
-//     const createEquip = (list, id) => {
-//         let result = [];
-//         list.forEach((x)=>{
-//             if(x.size!=''&&x.qty!='', x.dg!='', x.teu!=''){
-//                 delete x.id
-//                 result.push({...x, SEJobId:id, teu:`${x.teu}`})
-//             }
-//         })
-//         return result;
-//     }
-//     try {
-//         let data = req.body.data
-//         data.customCheck = data.customCheck.toString();
-//         data.transportCheck = data.transportCheck.toString();
-//         data.approved = data.approved.toString();
-//         const check = await SE_Job.findOne({
-//           where: {
-//             id: data.id
-//           }
-//         })
-//         if(check.dataValues.approved){
-//           res.json({status:'approved', result:await getJob(data.id)});
-//         }
-//         await SE_Job.update(data,{where:{id:data.id}}).catch((x)=>console.log(1));
-//         await SE_Equipments.destroy({where:{SEJobId:data.id}}).catch((x)=>console.log(2))
-//         await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id)).catch((x)=>console.log(x))
-//         res.json({status:'success', result:await getJob(data.id)});
-//     }  
-//     catch (error) {
-//         console.log(error)
-//       res.json({status:'error', result:error.message});
-//     }
-// });
 
 routes.post("/edit", async (req, res) => {
   const createEquip = (list, id) => {
@@ -420,34 +379,146 @@ routes.post("/edit", async (req, res) => {
   }
 });
 
-routes.get("/get", async(req, res) => {
+routes.get("/get", async (req, res) => {
   try {
-    // console.log(req.headers)
-    const result = await SE_Job.findAll({
-      where:{
-        companyId:req.headers.companyid,
-        operation:req.headers.operation
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const search = (req.query.search || "").trim();
+    const companyId = req.query.companyid;
+    const operation = req.query.operation;
+
+    const isNumeric = !isNaN(Number(search));
+
+    // -------------------------
+    // SEARCH CONDITION
+    // -------------------------
+    const searchCondition = search
+      ? {
+          [Op.or]: [
+            { jobNo: { [Op.iLike]: `%${search}%` } },
+            { nomination: { [Op.iLike]: `%${search}%` } },
+            { freightType: { [Op.iLike]: `%${search}%` } },
+            { pol: { [Op.iLike]: `%${search}%` } },
+            { pod: { [Op.iLike]: `%${search}%` } },
+            { fd: { [Op.iLike]: `%${search}%` } },
+
+            Sequelize.where(
+              Sequelize.col("Client.name"),
+              { [Op.iLike]: `%${search}%` }
+            ),
+
+            Sequelize.where(
+              Sequelize.col("Bl.hbl"),
+              { [Op.iLike]: `%${search}%` }
+            ),
+            Sequelize.where(
+              Sequelize.col("Bl.mbl"),
+              { [Op.iLike]: `%${search}%` }
+            ),
+
+            ...(isNumeric
+              ? [
+                  Sequelize.where(
+                    Sequelize.cast(
+                      Sequelize.col("SE_Job.weight"),
+                      "TEXT"
+                    ),
+                    { [Op.iLike]: `%${search}%` }
+                  )
+                ]
+              : [])
+          ]
+        }
+      : {};
+
+    // -------------------------
+    // QUERY WITH MERGED COUNTS ✅
+    // -------------------------
+    const { count, rows } = await SE_Job.findAndCountAll({
+      where: {
+        companyId,
+        operation,
+        ...searchCondition
       },
-      include:[
-        //{model:Voyage},
-        {model:Employees, as:'created_by', attributes:['name'] },
+
+      include: [
+        { model: Employees, as: "created_by", attributes: ["name"] },
+        { model: Bl, attributes: ["hbl", "mbl"], required: false },
+        { model: Clients, attributes: ["name"], required: false },
         {
-          model:Bl,
-          attributes:['hbl', 'mbl']
-        },
-        {
-          model:Clients,
-          attributes:['name']
+          model: Charge_Head,
+          attributes: [],
+          required: false
         }
       ],
-      attributes:['id', 'createdAt','approved', 'jobNo', 'nomination', 'freightType', 'pol', 'pod', 'fd', 'weight', 'transportCheck', 'customCheck'],
-      order:[["createdAt", "DESC"]],
-    }).catch((x)=>console.log(x))
-    // console.log(result)
-    res.json({status:'success', result:result});
-  }
-  catch (error) {
-    res.json({status:'error', result:error});
+
+      attributes: [
+        "id",
+        "createdAt",
+        "approved",
+        "jobNo",
+        "nomination",
+        "freightType",
+        "pol",
+        "pod",
+        "fd",
+        "weight",
+        "transportCheck",
+        "customCheck",
+
+        // ✅ INVOICE COUNT
+        [
+          Sequelize.literal(`
+            COUNT(DISTINCT CASE
+              WHEN "Charge_Heads"."invoice_id" LIKE '%I%'
+              THEN "Charge_Heads"."invoice_id"
+            END)
+          `),
+          "iLength"
+        ],
+
+        // ✅ BILL COUNT
+        [
+          Sequelize.literal(`
+            COUNT(DISTINCT CASE
+              WHEN "Charge_Heads"."invoice_id" LIKE '%B%'
+              THEN "Charge_Heads"."invoice_id"
+            END)
+          `),
+          "bLength"
+        ]
+      ],
+
+      group: [
+        "SE_Job.id",
+        "created_by.id",
+        "Bl.id",
+        "Client.id"
+      ],
+
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      subQuery: false
+    });
+
+    res.json({
+      status: "success",
+      result: rows,
+      total: count.length || count,
+      page,
+      totalPages: Math.ceil((count.length || count) / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to fetch jobs",
+      error
+    });
   }
 });
 
@@ -1087,52 +1158,6 @@ routes.get("/getawb", async(req, res) => {
     res.status(200).json({ result: result });
   } catch (err) {
     res.status(200).json({ result: err.message });
-  }
-});
-
-routes.post("/getCounts", async (req, res) => {
-  try {
-    let data = req.body.data;
-    let temp = []
-    // console.log("First Job ID:", data[0]); // or console.log("Data:", data);
-    for(let job of data){
-      const charges = await Charge_Head.findAll({
-        where: {
-          SEJobId: job.id
-        }
-      })
-      const invoiceSet = new Set();
-      const billSet = new Set();
-
-      let iLength = 0;
-      let bLength = 0;
-
-      charges.forEach(charge => {
-        const invoiceId = charge.dataValues.invoice_id;
-        if (invoiceId) {
-          if (invoiceId.includes("I") && !invoiceSet.has(invoiceId)) {
-            invoiceSet.add(invoiceId);
-            iLength++;
-          }
-          if (invoiceId.includes("B") && !billSet.has(invoiceId)) {
-            billSet.add(invoiceId);
-            bLength++;
-          }
-        }
-      });
-      // console.log(iLength, bLength)
-      temp.push({
-        ...job,
-        iLength: iLength,
-        bLength: bLength
-      })
-    }
-
-    
-    return res.json({ status: "success", result: temp });
-  } catch (e) {
-    console.error(e);
-    return res.json({ status: "error", result: e.toString() });
   }
 });
 
