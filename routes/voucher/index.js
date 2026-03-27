@@ -381,6 +381,26 @@ routes.get("/getAllJobPayRecVouchers", async (req, res) => {
       offset,
     });
 
+    const partyIds = result
+      .map(v => v.dataValues.partyId)
+      .filter(Boolean);
+
+    if (partyIds.length) {
+      const clientAssociations = await Client_Associations.findAll({
+        where: { ClientId: { [Op.in]: partyIds } }
+      });
+
+      const clientMap = {};
+      clientAssociations.forEach(ca => {
+        clientMap[ca.ClientId] = ca;
+      });
+
+      result.forEach(voucher => {
+        voucher.dataValues.clientAssociation =
+          clientMap[voucher.dataValues.partyId] || null;
+      });
+    }
+
     let invoice = [];
     result.forEach((x) => {
       x.dataValues.invoices?.split(",").forEach((y) => {
