@@ -351,7 +351,11 @@ routes.get("/getClients", async(req, res) => {
         const result = await Clients.findAll({
             // where:{[Op.or]:[{nongl:'0'}, {[Op.eq]:{nongl:null}}]},
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
-            order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] 
+            order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] ,
+            include: [{
+                model: Client_Associations,
+                required: true
+            }]
         });
         res.json({status:'success', result:result});
     }
@@ -725,7 +729,7 @@ routes.post("/bulkCreate", async (req, res) => {
 routes.get("/getClientsForBackup", async (req, res) => {
     try{
         const clients = await Clients.findAll({
-            attributes: [ 'id', 'climaxId' ]
+            attributes: [ 'id', 'climaxId' ],
         })
         res.status(200).json({ status: 'success', result: clients})
     }catch(e){

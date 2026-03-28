@@ -722,20 +722,13 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
     // console.log("Make Transaction:",x)
     let company = '';
     let inVoiceDeleteList = []
+    console.log("Party Id:", x.partyId)
     let account = await Client_Associations.findOne({
       where:{
         // CompanyId: companyId,
         ClientId: x.partyId
       }
     })
-    if(account == null){
-      account = await Vendor_Associations.findOne({
-        where: {
-          CompanyId: companyId,
-          VendorId: x.partyId
-        }
-      })
-    }
     console.log("Account:",account)
     if(lastJB?.Charge_Heads?.length==0){
       inVoiceDeleteList.push(lastJB.id)
