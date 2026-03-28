@@ -47,22 +47,35 @@ routes.get('/getHistory', async(req, res) => {
         if(req.headers.user != 'All'){
             condition.EmployeeId = req.headers.user
         }
-        const result = await History.findAll({
-            where: {
-                createdAt: {
-                    [Op.gte]: req.headers.from,
-                    [Op.lte]: req.headers.to
+        if(req.headers.from && req.headers.to){
+            const result = await History.findAll({
+                where: {
+                    createdAt: {
+                        [Op.gte]: req.headers.from,
+                        [Op.lte]: req.headers.to
+                    },
+                    ...condition
                 },
-                ...condition
-            },
-            include: {
-                model: Employees,
-                as: 'Employee',
-                attributes: ['name']
-            },
-            order: [['createdAt', 'DESC']]
-        });
-        res.json({status:'success', result:result});
+                include: {
+                    model: Employees,
+                    as: 'Employee',
+                    attributes: ['name']
+                },
+                order: [['createdAt', 'DESC']]
+            });
+            res.json({status:'success', result:result});
+        }else{
+            const result = await History.findAll({
+                limit: 20,
+                include: {
+                    model: Employees,
+                    as: 'Employee',
+                    attributes: ['name']
+                },
+                order: [['createdAt', 'DESC']]
+            });
+            res.json({status:'success', result:result});
+        }
     }
     catch (error) {
         console.error(error)
