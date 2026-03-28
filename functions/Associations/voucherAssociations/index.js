@@ -3,8 +3,6 @@ const { Company, Invoice, Vouchers, Voucher_Heads, Office_Vouchers } = require("
 const { Child_Account } = require("../accountAssociations");
 const { Employees } = require("../employeeAssociations")
 
-//Vendors.belongsTo(Employees, { as: 'account_representator' });
-
 Company.hasMany(Vouchers, {
     foreignKey:{
         type: DataTypes.INTEGER,

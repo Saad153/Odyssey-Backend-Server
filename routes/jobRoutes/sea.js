@@ -7,7 +7,6 @@ const { Charge_Head } = require("../../functions/Associations/incoiceAssociation
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
-// const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require("../../functions/Associations/vesselAssociations");
 const { Commodity, Vessel, Charges, Invoice }=require("../../models");
@@ -91,7 +90,6 @@ routes.get("/getJobNumbers", async (req, res) => {
 });
 
 routes.get("/getValues", async(req, res) => {
-  console.log("============Request Made=====================")
   let makeResult = (result, resultTwo) => {
     let finalResult = {shipper:[], consignee:[], notify:[], client:[], sLine:[]};
     result.forEach((x) => {
@@ -105,26 +103,20 @@ routes.get("/getValues", async(req, res) => {
         finalResult.notify.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
       }
       if(x.types.includes('Shipping Line')){
-        // console.log(x)
         finalResult.sLine.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
       }
     })
     let tempClient = [];
-    // console.log(resultTwo.length)
     resultTwo.forEach((x)=>{
       if(x.nongl!='1'){
         tempClient.push({name:`${x.name} (${x.code})`, id:x.id, types:x.types})
       }
     })
     finalResult.client = tempClient;
-    // finalResult.client = resultTwo.map((x)=>{
-    //     return {name:`${x.name} (${x.code})`, id:x.id, types:x.types}
-    // });
     return finalResult
   };
 
   let makeResultTwo = (result) => {
-    console.log(result.length)
     let finalResult = { transporter:[], forwarder:[], overseasAgent:[], localVendor:[], chaChb:[], sLine:[], airLine:[] };
     result.forEach((x) => {
       if(x.types.includes('Air Line')){
@@ -217,7 +209,6 @@ routes.get("/getValues", async(req, res) => {
     await charges.forEach((x) => {
       tempChargeList.push({...x.dataValues, label:`(${x.dataValues.code}) ${x.dataValues.short}`, value:x.dataValues.id});
     });
-    // console.log(result.dataValues)
     let temp = result.filter(x => x.types.includes('Shipping Line'));
     res.json({
       status:'success',
@@ -248,6 +239,7 @@ routes.post("/getNotes", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -260,6 +252,7 @@ routes.get("/getAllNotes", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -283,6 +276,7 @@ routes.post("/addNote", async(req, res) => {
       res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -323,13 +317,12 @@ routes.post("/create", async(req, res) => {
         }
       }
     });
-    console.log(data)
     const result = await SE_Job.create({
       ...data,
       jobId:check==null?1:parseInt(check.jobId)+1,
       jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${check==null?1:parseInt(check.jobId)+1}/26`
-    }).catch((x)=>console.log(x.message))
-    await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.log(x))
+    }).catch((x)=>console.error(x.message))
+    await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.error(x))
     createHistory(req.body.employeeId, 'Job', 'Create', result.jobNo);
     res.json({status:'success', result:await getJob(result.id)});
   }
@@ -362,19 +355,15 @@ routes.post("/edit", async (req, res) => {
         id: data.id,
       },
     });
-    console.log("Data Approved: ", data.approved)
-    // if (check.dataValues.approved == 'true') {
-    //   return res.json({ status: "approved", result: await getJob(data.id) });
-    // }
 
-    await SE_Job.update(data, { where: { id: data.id } }).catch((x) => console.log(1));
-    await SE_Equipments.destroy({ where: { SEJobId: data.id } }).catch((x) => console.log(2));
-    await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id)).catch((x) => console.log(x));
+    await SE_Job.update(data, { where: { id: data.id } }).catch((x) => console.error(x.message));
+    await SE_Equipments.destroy({ where: { SEJobId: data.id } }).catch((x) => console.error(x.message));
+    await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id)).catch((x) => console.error(x.message));
     createHistory(req.body.employeeId, 'Job', 'Edit', data.jobNo);
     return res.json({ status: "success", result: await getJob(data.id) });
 
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return res.json({ status: "error", result: error.message });
   }
 });
@@ -629,7 +618,6 @@ routes.post("/createBl", async(req, res) => {
       where:{ mbl: data.mbl },
       attributes:["mbl", "hbl", "SEJobId"] 
     });
-    // console.log(check.dataValues)
     if (!check){
       let obj = {
         pkgUnit:data.unit, 
@@ -642,7 +630,6 @@ routes.post("/createBl", async(req, res) => {
       }
       if(data.operation=="SI" || data.operation=="AI" || data.operation=="SE"){
 
-        // console.log("Here")
         await SE_Job.update({
           ...obj
         }, {where:{id:data.SEJobId}});
@@ -661,13 +648,13 @@ routes.post("/createBl", async(req, res) => {
       await data.Container_Infos.forEach((x, i)=>{
         data.Container_Infos[i] = {...x, BlId:result.id}
       })
-      await Container_Info.bulkCreate(data.Container_Infos).catch((x)=>console.log(x))
+      await Container_Info.bulkCreate(data.Container_Infos).catch((x)=>console.error(x))
       if(data.Dimensions.length>0){
         data.Dimensions.forEach((x, i)=>{
           x.id==null?delete x.id:null;
           data.Dimensions[i] = {...x, BlId:result.id}
         })
-        await Dimensions.bulkCreate(data.Dimensions).catch((x)=>console.log(x))
+        await Dimensions.bulkCreate(data.Dimensions).catch((x)=>console.error(x))
       }
       const res1 = await SE_Job.findOne({
         where:{id: data.SEJobId}
@@ -675,14 +662,12 @@ routes.post("/createBl", async(req, res) => {
       createHistory(req.body.employeeId, 'BL', 'Create', res1.jobNo);
       res.json({status:'success', result:result.id });
     }else {
-      console.log("Job ID:", check.dataValues.SEJobId)
       const job = await SE_Job.findOne({
         where: {
           id: check.dataValues.SEJobId
         },
         attributes:["jobNo"]
       })
-      console.log(job.dataValues)
       createHistory(req.body.employeeId, 'BL', 'Create', job.jobNo);
       res.json({status:'warning', result:`Mbl or Hbl Already Exists in Job: ${job.dataValues.jobNo}` });
     }
@@ -749,7 +734,7 @@ routes.post("/editBl", async(req, res) => {
         updateOnDuplicate: [
           "length", "width", "height", "qty", "vol", "weight"
         ],
-      })//.catch((x)=>console.log(x.message))
+      })
     };
     await Stamps.destroy({ where:{id:data.deleteArr} });
     await Container_Info.destroy({ where:{id:req.body.deletingContinersList} });
@@ -836,6 +821,7 @@ routes.get("/getBlById", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -848,6 +834,7 @@ routes.get("/getStamps", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 }); 
@@ -869,6 +856,7 @@ routes.post("/deleteJob", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 }); 
@@ -881,6 +869,7 @@ routes.get("/getLoadingProgram", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 }); 
@@ -888,11 +877,12 @@ routes.get("/getLoadingProgram", async(req, res) => {
 routes.post("/upsertLoadingProgram", async(req, res) => {
   try {
     const result = await Loading_Program.upsert(req.body)
-    .catch((x)=>console.log(x))
+    .catch((x)=>console.error(x))
     createHistory(req.body.employeeId, 'Loading Program', 'Upsert', result.name);
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 }); 
@@ -960,6 +950,7 @@ routes.get("/getJobByValues", async (req, res) => {
       ]});
       res.status(200).json({ result: jobs });
     } catch (err) {
+      console.error(err);
       res.status(200).json({ result: err.message });
     }
 });
@@ -1094,6 +1085,7 @@ routes.get("/getValuesJobList", async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
@@ -1102,10 +1094,11 @@ routes.get("/getDeliveryOrder", async(req, res) => {
   try {
     const result = await Delivery_Order.findOne({
         where:{SEJobId:req.headers.id},
-    }).catch((x)=>console.log(x))
+    }).catch((x)=>console.error(x))
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status:'error', result:error});
   }
 }); 
@@ -1116,12 +1109,12 @@ routes.post("/upsertDeliveryOrder", async(req, res) => {
   try {
     if(!req.body.doNo){
       const check = await Delivery_Order.findOne({order: [ [ 'no', 'DESC' ]], attributes:["no"], where:{operation:req.body.operation, companyId:req.body.companyId}})
-      .catch((e) => console.log(e));
+      .catch((e) => console.error(e));
       result = await Delivery_Order.upsert({
         ...req.body, 
         no:check==null?1:parseInt(check.no)+1, 
         doNo:`${req.body.companyId==1?'SNS':req.body.companyId==2?'CLS':'ACS'}-DO${check==null?1:parseInt(check.no)+1}-${moment().format("YY")}`
-      }).catch((x)=>console.log(x))
+      }).catch((x)=>console.error(x))
     } else {
     let check;
     !req.body.id?
@@ -1132,12 +1125,12 @@ routes.post("/upsertDeliveryOrder", async(req, res) => {
       ...req.body, 
       no:!req.body.id? check==null?1:parseInt(check.no)+1 : req.body.no, 
       doNo:req.body.doNo
-    }).catch((x)=>console.log(x))
+    }).catch((x)=>console.error(x))
   }
   res.json({status:'success', result: result});
   }
   catch (error) {
-    console.log(error.message)
+    console.error(error.message)
     res.json({status:'error', result:error.message});
   }
 });
@@ -1157,6 +1150,7 @@ routes.get("/getawb", async(req, res) => {
     })
     res.status(200).json({ result: result });
   } catch (err) {
+    console.error(err);
     res.status(200).json({ result: err.message });
   }
 });
@@ -1192,14 +1186,8 @@ function formatAddress(raw) {
 
 routes.post("/UploadSEJobs", async (req, res) => {
   try{
-    console.log("Jobs Length:", req.body.length)
-
     let jobs = []
-
     for(let job of req.body){
-
-      console.log(job.JobNumber)
-
       const Client = await Clients.findOne({
         where: {
           climaxId: job.ClientId
@@ -1250,7 +1238,6 @@ routes.post("/UploadSEJobs", async (req, res) => {
           climaxId: job.CommodityId
         }
       })
-      // const vessel = vesselMap.get(job.VesselId)
       const vessel = await Vessel.findOne({
         where: {
           climaxId: job.VesselId
@@ -1267,7 +1254,6 @@ routes.post("/UploadSEJobs", async (req, res) => {
       let j = {
         jobNo: job.JobNumber,
         jobId: job.JobNumber.split("/")[0].split("-").pop(),
-        // title: 1,
         customerRef: job.CustomerRefNo,
         fileNo: job.FileNumber,
         shipStatus: job.ShipmentStatusId == 1 ? "Shipped" : "Booked" ,
@@ -1289,14 +1275,12 @@ routes.post("/UploadSEJobs", async (req, res) => {
         jobType: job.JobTypeId == 1 ? "Direct" : job.JobTypeId == 2 ? "Coloaded" : "Cross Trade",
         jobKind: job.JobKindId == 1 ? "Current" : "Opening",
         container: "",
-        // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
         transportCheck: Transporter ? "" : "Transport"  ,
         customCheck: CustomClearance ? "" : "Custom Clearance",
         etd: job.PlannedETD,
         eta: job.PlannedETA,
-        // cbkg: 1,
         aesDate: job.AESDateTime,
         eRcDate: job.ERecDateTime,
         eRlDate: job.ERLSDateTime,
@@ -1363,13 +1347,9 @@ routes.post("/UploadSEJobs", async (req, res) => {
 
       if(job.SExp_BL){
         let bl = job.SExp_BL
-        // console.log(bl.Id)
-        // console.log(formatAddress(bl.SExp_BL_Detail.Shipper))
-  
         let BL = {
           operation: "SE",
           hbl: bl.HBLNo,
-          // no: 1,
           hblDate: bl.HBLDate,
           hblIssue: "",
           mbl: bl.MBLNo,
@@ -1440,8 +1420,6 @@ routes.post("/UploadSEJobs", async (req, res) => {
           createdAt: bl.AddOn,
           updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
-          // notifyPartyOneId: 1,
-          // notifyPartyTwoId: 1,
         }
   
         const savedBl = await Bl.create(BL)
@@ -1516,7 +1494,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
     createHistory(req.body.employeeId, 'Upload Job', 'Edit', result.name);
     res.json({ status: "success", result: jobs });
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({ status: "error", result: e.toString() });
   }
 })
@@ -1528,14 +1506,8 @@ const safeFindOne = async (model, id) => {
 
 routes.post("/UploadSIJobs", async (req, res) => {
   try{
-    console.log("Jobs Length:", req.body.length)
-
     let jobs = []
-
     for(let job of req.body){
-
-      console.log(job.JobNumber)
-
       const Client = await Clients.findOne({
         where: {
           climaxId: job.ClientId
@@ -1586,7 +1558,6 @@ routes.post("/UploadSIJobs", async (req, res) => {
           climaxId: job.CommodityId
         }
       })
-      // const vessel = vesselMap.get(job.VesselId)
       const vessel = await Vessel.findOne({
         where: {
           climaxId: job.VesselId
@@ -1603,7 +1574,6 @@ routes.post("/UploadSIJobs", async (req, res) => {
       let j = {
         jobNo: job.JobNumber,
         jobId: job.JobNumber.split("/")[0].split("-").pop(),
-        // title: 1,
         customerRef: job.CustomerRefNo,
         fileNo: job.FileNumber,
         shipStatus: job.ShipmentStatusId == 1 ? "Shipped" : "Booked" ,
@@ -1625,14 +1595,12 @@ routes.post("/UploadSIJobs", async (req, res) => {
         jobType: job.JobTypeId == 1 ? "Direct" : job.JobTypeId == 2 ? "Coloaded" : "Cross Trade",
         jobKind: job.JobKindId == 1 ? "Current" : "Opening",
         container: "",
-        // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
         transportCheck: Transporter ? "" : "Transport"  ,
         customCheck: CustomClearance ? "" : "Custom Clearance",
         etd: job.PlannedETD,
         eta: job.PlannedETA,
-        // cbkg: 1,
         aesDate: job.AESDateTime,
         eRcDate: job.ERecDateTime,
         eRlDate: job.ERLSDateTime,
@@ -1699,13 +1667,9 @@ routes.post("/UploadSIJobs", async (req, res) => {
 
       if(job.SImp_BL){
         let bl = job.SImp_BL
-        // console.log(bl.Id)
-        // console.log(formatAddress(bl.SExp_BL_Detail.Shipper))
-  
         let BL = {
           operation: "SI",
           hbl: bl.HBLNo,
-          // no: 1,
           hblDate: bl.HBLDate,
           hblIssue: "",
           mbl: bl.MBLNo,
@@ -1776,8 +1740,6 @@ routes.post("/UploadSIJobs", async (req, res) => {
           createdAt: bl.AddOn,
           updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
-          // notifyPartyOneId: 1,
-          // notifyPartyTwoId: 1,
         }
   
         const savedBl = await Bl.create(BL)
@@ -1804,7 +1766,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
     
     res.json({ status: "success", result: jobs });
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({ status: "error", result: e.toString() });
   }
 })
@@ -1866,15 +1828,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
     if(CP.GL_JobBill_Charges?.JobBill?.Invoice){
 
       let CAID = 0;
-
-      // const accountKey = `${CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
       CAID = CP.GL_JobBill_Charges?.JobBill?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.Id;
-      // if (accountMap.has(accountKey)) {
-      // } else {
-      //   console.warn(`⚠️ No matching account for: ${CP.GL_JobBill_Charges?.JobBill?.Invoice.InvoiceNumber}`);
-      // }
-
       let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_JobBill_Charges.JobBill.Invoice.Id.toString()}})
 
       if(!savedInvoice){
@@ -1891,7 +1845,6 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
       }else{
         partyCode = i.GL_Voucher.GL_Voucher_Detail[1].COAAccountId
       }
-      // console.log("Party Code:", partyCode)
       const account = await Child_Account.findOne({
         where: { id: partyCode.toString() },
       })
@@ -1913,7 +1866,6 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
       let CA = null
 
       if(account){
-        // console.log("Account Found:", account.title, account.id)
         CA = await Client_Associations.findOne({
           where: {
             ChildAccountId: account.id
@@ -1969,7 +1921,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
 
       let tempVoucher = await Vouchers.findOne({where:{voucher_Id:i.GL_Voucher.VoucherNo}})
       if(!tempVoucher){
-        !i.GL_Voucher.Id && console.log("No Voucher ID for Invoice:", i.GL_Voucher.VoucherNo)
+        !i.GL_Voucher.Id
         let vch = await Vouchers.create({
           voucher_No: i.GL_Voucher.VoucherNo?.split("-")[2].split("/")[0].replace(/^0+/, "") || "1",
           voucher_Id: i.GL_Voucher.VoucherNo || "1",
@@ -1995,7 +1947,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
         }, { silent: true });
   
         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-          !vh.Id && console.log("No Voucher Detail ID for Voucher:", i.GL_Voucher.VoucherNo)
+          !vh.Id
           let Voucher_Head = {
             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
@@ -2016,14 +1968,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
     if(CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice){
 
       let CAID = 0;
-
-      // const accountKey = `${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName}`;
-
       CAID = CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.Id;
-      // if (accountMap.has(accountKey)) {
-      // } else {
-      //   console.warn(`⚠️ No matching account for: ${CP.GL_AgentInvoice_Charges?.Agent_Invoice?.Invoice.InvoiceNumber}`);
-      // }
 
       let savedInvoice = await Invoice.findOne({where:{climaxId:CP.GL_AgentInvoice_Charges.Agent_Invoice.Invoice.Id.toString()}})
 
@@ -2115,7 +2060,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
       }
       let tempVoucher = await Vouchers.findOne({where:{voucher_Id:i.GL_Voucher.VoucherNo}})
       if(!tempVoucher){
-        !i.GL_Voucher.Id && console.log("No Voucher ID for Invoice:", i.GL_Voucher.VoucherNo)
+        !i.GL_Voucher.Id
         let vch = await Vouchers.create({
           voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, "") || "1",
           voucher_Id: i.GL_Voucher.VoucherNo || "1",
@@ -2141,7 +2086,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
         }, { silent: true });
   
         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
-          !vh.Id && console.log("No Voucher Detail ID for Voucher:", i.GL_Voucher.VoucherNo)
+          !vh.Id
           let Voucher_Head = {
             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
@@ -2160,7 +2105,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
     }
   }
 }catch(e){
-  console.log(e)
+  console.error(e)
 }
 }
 
@@ -2241,10 +2186,6 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
     if (CP.GL_JobInvoice_Charges?.JobInvoice?.Invoice) {
 
       const i = CP.GL_JobInvoice_Charges.JobInvoice.Invoice;
-
-      // const accountKey =
-        // i.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.AccountName;
-
       const CAID = i.GL_Voucher.GL_Voucher_Detail[0].GL_COA?.Id;
 
       let savedInvoice = await Invoice.findOne({
@@ -2307,7 +2248,7 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
 
       let tempVoucher = await Vouchers.findOne({where:{voucher_Id:i.GL_Voucher.VoucherNo}})
       if(!tempVoucher){
-        !i.GL_Voucher.Id && console.log("No Voucher ID for Invoice:", i.GL_Voucher.VoucherNo)
+        !i.GL_Voucher.Id
         const vch = await Vouchers.create({
           voucher_No: i.GL_Voucher.VoucherNo.split("-")[2].split("/")[0].replace(/^0+/, "") || "1",
           voucher_Id: i.GL_Voucher.VoucherNo || "1",
@@ -2333,7 +2274,7 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
         }, { silent: true });
   
         for (let vh of i.GL_Voucher.GL_Voucher_Detail) {
-          !vh.Id && console.log("No Voucher Detail ID for Voucher:", i.GL_Voucher.VoucherNo)
+          !vh.Id
           await Voucher_Heads.create({
             defaultAmount: vh.DebitLC == 0 ? vh.CreditLC : vh.DebitLC,
             amount: vh.DebitVC == 0 ? vh.CreditVC : vh.DebitVC,
@@ -2362,8 +2303,6 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
     for(let job of req.body){
 
-      console.log(job.JobNumber)
-
       const Client = await safeFindOne(Clients, job.ClientId);
       const AirLine = await safeFindOne(Clients, job.AirLineId);
       const OverseasAgent = await safeFindOne(Clients, job.OverseasAgentId);
@@ -2375,19 +2314,10 @@ routes.post("/UploadAEJobs", async (req, res) => {
       const Consignee = await safeFindOne(Clients, job.ConsigneeId);
       const Shipper = await safeFindOne(Clients, job.ShipperId);
       const commodity = await safeFindOne(Commodity, job.CommodityId);
-      // const vessel = await safeFindOne(Vessel, job.VesselId);
-      // let voyage
-      // vessel ? voyage = await Voyage.findOne({
-      //   where: {
-      //     VesselId: vessel.id,
-      //     voyage: job.VoyageNo
-      //   }
-      // }) : null
 
       let j = {
         jobNo: job.JobNumber,
         jobId: job.JobNumber.split("/")[0].split("-").pop(),
-        // title: 1,
         customerRef: job.CustomerRefNo,
         fileNo: job.FileNumber,
         shipStatus: job.ShipmentStatusId == 1 ? "Shipped" : "Booked" ,
@@ -2409,14 +2339,12 @@ routes.post("/UploadAEJobs", async (req, res) => {
         jobType: job.JobTypeId == 1 ? "Direct" : job.JobTypeId == 2 ? "Coloaded" : "Cross Trade",
         jobKind: job.JobKindId == 1 ? "Current" : "Opening",
         container: "",
-        // carrier: 1,
         freightType: job.FreightTypeId,
         nomination: 1,
         transportCheck: Transporter ? "" : "Transport"  ,
         customCheck: CustomClearance ? "" : "Custom Clearance",
         etd: job.PlannedETD,
         eta: job.PlannedETA,
-        // cbkg: 1,
         aesDate: job.AESDateTime,
         eRcDate: job.ERecDateTime,
         eRlDate: job.ERLSDateTime,
@@ -2445,7 +2373,6 @@ routes.post("/UploadAEJobs", async (req, res) => {
         createdAt: job.AddOn,
         updatedAt: job.EditOn?job.EditOn:job.AddOn,
         ClientId: Client?.id,
-        // VoyageId: voyage?.id,
         salesRepresentatorId: '3d237d09-d8ba-47f1-8764-22cff8e11639',
         overseasAgentId: OverseasAgent?.id,
         shippingLineId: ShippingLine?.id,
@@ -2472,7 +2399,7 @@ routes.post("/UploadAEJobs", async (req, res) => {
         let BL = {
           operation: "AE",
           hbl: bl.HAWBNo,
-          // no: 1,
+
           hblDate: bl.HAWBDate,
           hblIssue: "",
           mbl: bl.MAWBNo,
@@ -2543,8 +2470,6 @@ routes.post("/UploadAEJobs", async (req, res) => {
           createdAt: bl.AddOn,
           updatedAt: bl.EditOn?bl.EditOn:bl.AddOn,
           SEJobId: savedJob.id,
-          // notifyPartyOneId: 1,
-          // notifyPartyTwoId: 1,
         }
   
         const savedBl = await Bl.create(BL)
@@ -2555,7 +2480,6 @@ routes.post("/UploadAEJobs", async (req, res) => {
       ] });
       const accountMap = new Map();
       accounts.forEach((a) => {
-        // const companyId = a.Child_Account?.CompanyId;
         accountMap.set(`${a.title}`, { id: a.id, subCategory: a.subCategory });
       });
       const companyId = job.SubCompanyId == 2 ? 1 : 3;
@@ -2571,20 +2495,16 @@ routes.post("/UploadAEJobs", async (req, res) => {
 
     res.json({ status: "success", result: jobs });
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({ status: "error", result: e.toString() });
   }
 })
 
 routes.post("/UploadAIJobs", async (req, res) => {
   try{
-    // console.log("Jobs Length:", req.body)
-
     let jobs = []
 
     for(let job of req.body){
-
-      console.log(job.JobNumber)
 
       const Client = await safeFindOne(Clients, job.ClientId);
       const AirLine = await safeFindOne(Clients, job.AirLineId);
@@ -2682,7 +2602,6 @@ routes.post("/UploadAIJobs", async (req, res) => {
         let BL = {
           operation: "AI",
           hbl: bl.HAWBNo,
-          // no: 1,
           hblDate: bl.HAWBDate,
           hblIssue: "",
           mbl: bl.MAWBNo,
@@ -2778,14 +2697,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
 
     res.json({ status: "success", result: jobs });
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({ status: "error", result: e.toString() });
   }
 })
 
 routes.post("/linkCharges", async (req, res) => {
   try{
-    console.log("Linking Charges")
     const charges = await Charge_Head.findAll({
       where: {
         InvoiceId: null
@@ -2811,14 +2729,10 @@ routes.post("/linkCharges", async (req, res) => {
 routes.post("/fixAirJobs", async (req, res) => {
   let i = 0
   try{
-    console.log("Fixing Air Jobs:", req.body.length)
     const AirImportJob = req.body.AirImportJob
     const AirExportJob = req.body.AirExportJob
     const UNLocation = req.body.UNLocation
     const AExp_BL = req.body.BL
-    console.log(AirExportJob.length)
-    console.log(AirImportJob.length)
-    console.log(UNLocation.length)
 
     const clients = await Clients.findAll({
       attributes: ['id', 'climaxId'],
@@ -2854,7 +2768,6 @@ routes.post("/fixAirJobs", async (req, res) => {
       );
 
       if (affected === 0) {
-        // Nothing matched the where clause
         console.warn(`No SE_Job found for climaxId=${job.Id}`);
       }
     }
@@ -2891,11 +2804,8 @@ routes.post("/fixAirJobs", async (req, res) => {
 routes.post("/fixSeaJobs", async (req, res) => {
   let i = 0
   try{
-    console.log("Fixing Sea Jobs:", req.body.length)
     const SeaExportJob = req.body.SeaExportJob
     const UNLocation = req.body.UNLocation
-    console.log(SeaExportJob.length)
-    console.log(UNLocation.length)
 
     const clients = await Clients.findAll({
       attributes: ['id', 'climaxId'],
@@ -2917,8 +2827,6 @@ routes.post("/fixSeaJobs", async (req, res) => {
       const client = climaxToId.get(parseInt(job.ClientId))
       const shipper = climaxToId.get(parseInt(job.ShipperId))
       if(job.JobNumber == 'SNS-SEJ-480/26'){
-        console.log(`Updating job ${job.JobNumber}: clientId=${job.ClientId}, shipperId=${job.ShipperId}, fd=${fdMap.get(job.FinalDestinationCode)}`)
-        console.log(`Updating job ${job.JobNumber}: clientId=${client}, shipperId=${shipper}, fd=${fdMap.get(job.FinalDestinationCode)}`)
       }
 
       const [affected] = await SE_Job.update(
@@ -3078,7 +2986,6 @@ routes.post("/fixAEBL", async ( req, res ) => {
 
 routes.post("/uploadLogJobs", async (req, res) => {
   try{
-    console.log("Upload Log Jobs:", req.body.length)
     await SE_Job.bulkCreate(req.body)
     res.status(200).json({ status: 'success' })
   }catch(e){

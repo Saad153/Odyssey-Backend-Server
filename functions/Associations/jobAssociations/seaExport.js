@@ -116,8 +116,6 @@ Bl.belongsTo(Clients,       {as:'notifyPartyOne'     });
 Bl.belongsTo(Clients,       {as:'notifyPartyTwo'     });
 SE_Job.belongsTo(Clients,   {as:'overseas_agent'     });
 SE_Job.belongsTo(Clients,   {as:'shipping_line'      });
-//SE_Job.belongsTo(Clients, { as: 'vendor_shipping_line' });
-//SE_Job.belongsTo(Clients, { as: 'client_shipping_line' });
 SE_Job.belongsTo(Clients,   {as:'local_vendor'       });
 SE_Job.belongsTo(Clients,   {as:'custom_agent'       });
 SE_Job.belongsTo(Clients,   {as:'transporter'        });

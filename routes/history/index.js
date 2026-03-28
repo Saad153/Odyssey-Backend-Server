@@ -36,7 +36,6 @@ routes.get('/getTypes', async(req, res) => {
 });
 routes.get('/getHistory', async(req, res) => {
     try {
-        console.log(req.headers)
         const condition = {} 
         if(req.headers.form != 'All'){
             condition.formName = req.headers.form

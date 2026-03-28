@@ -1,4 +1,3 @@
-const { DataTypes } = require('sequelize')
 const { Vessel, Voyage} = require("../../../models");
 
 

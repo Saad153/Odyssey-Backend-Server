@@ -3,16 +3,10 @@ module.exports = (sequelize, DataTypes) => {
         pol:{
             type:DataTypes.STRING,
             allowNull: true,
-            // validate:{
-            //     notEmpty: true
-            // }
         },
         pod:{
             type:DataTypes.STRING,
             allowNull: true,
-            // validate:{
-            //     notEmpty: true
-            // }
         },
         voyage:{
             type:DataTypes.STRING,

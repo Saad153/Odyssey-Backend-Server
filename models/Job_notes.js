@@ -40,10 +40,6 @@ module.exports = (sequelize, DataTypes) => {
         },
         opened :{
             type : DataTypes.STRING,
-            // allowNull: false,
-            // validate:{
-            //     notEmpty: true
-            // }
         } 
     })
     return Job_notes;
