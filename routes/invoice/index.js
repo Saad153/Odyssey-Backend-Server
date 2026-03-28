@@ -164,13 +164,13 @@ routes.get("/getJobInvoices", async(req, res) => {
     res.json({status:'success', result:result});
     }
     catch (error) {
+      console.error(error)
       res.json({status:'error', result:error});
     }
 });
 
 routes.get("/getFilteredInvoices", async(req, res) => {
   try {
-    console.log("Invoice Type: ", req.headers.type)
     const result = await Invoice.findAll({
       where:{type:req.headers.type},
       attributes:['id', 'invoice_No', 'status', 'operation', 'currency', 'ex_rate', 'party_Name', 'total', 'partyType', 'approved'],
@@ -185,6 +185,7 @@ routes.get("/getFilteredInvoices", async(req, res) => {
     })
     res.json({status:'success', result:result});
   } catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -195,7 +196,6 @@ routes.get("/getInvoiceByNo", async(req, res) => {
         'name', 'address1', 'address1', 'person1', 'mobile1',
         'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
       ];
-      console.log("Invoice Id: ", req.headers.invoiceno)
       const resultOne = await Invoice.findOne({
         where:{invoice_No:req.headers.invoiceno.toUpperCase()},
         include:[
@@ -207,7 +207,6 @@ routes.get("/getInvoiceByNo", async(req, res) => {
               'weight', 'pcs', 'flightNo', 'cwtClient', 'cwtLine', 'eta',
               'etd', 'arrivalDate', 'departureDate', 'customerRef'
             ],
-            //attributes:['id'],
             include:[
               { model:SE_Equipments , attributes:['qty', 'size'] },
               { 
@@ -223,7 +222,6 @@ routes.get("/getInvoiceByNo", async(req, res) => {
               { model:Vessel, as:'vessel', attributes:['carrier', 'name'] },
               { model:Clients, as:'air_line', attributes:['name'] },
               { model:Commodity, as:'commodity', attributes:['name'] },
-              //{ model:Voyage },
             ]
           },
         ],
@@ -231,7 +229,6 @@ routes.get("/getInvoiceByNo", async(req, res) => {
           [{ model: Charge_Head }, 'id', 'ASC'],
         ]
       })
-      // console.log(resultOne)
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
@@ -245,7 +242,6 @@ routes.get("/getInvoiceById", async(req, res) => {
         'name', 'address1', 'address1', 'person1', 'mobile1',
         'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
       ];
-      console.log("Invoice Id: ", req.headers.invoiceid)
       const resultOne = await Invoice.findOne({
         where:{id:{ [Op.eq]: req.headers.invoiceid }},
         include:[
@@ -278,12 +274,11 @@ routes.get("/getInvoiceById", async(req, res) => {
           [{ model: Charge_Head }, 'id', 'ASC'],
         ]
       })
-      console.log(resultOne)
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
       res.json({status:'error', result:error});
-      console.log(error)
+      console.error(error)
     }
 });
 
@@ -592,7 +587,7 @@ routes.get("/getAllInvoices", async(req, res) => {
     });
     res.json({status: 'success', result: result});
   }catch(error){
-    console.log(error)
+    console.error(error)
     res.json({status: 'error', result: error});
   }
 })
@@ -680,7 +675,7 @@ routes.post("/saveHeadesNew", async(req, res) => {
     res.json({status:'success'});
   }
   catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -696,18 +691,11 @@ routes.get("/getHeadesNew", async(req, res) => {
           attributes: ['id', 'status', 'approved'],
           include: {
             model: Invoice_Transactions,
-            // include: {
-            //   model: Vouchers,
-            //   include: {
-            //     model: Voucher_Heads
-            //   }
-            // }
           }
         }
       ],
       order: [['id', 'ASC']] // or 'DESC' if you want descending
     });
-    // console.log(result[0].dataValues.Invoice.dataValues.Invoice_Transactions[0].dataValues)
     res.json({status:'success', result});
   }
   catch (error) {
@@ -719,17 +707,13 @@ routes.get("/getHeadesNew", async(req, res) => {
 // This function is used in the API below helps to set invoice number according to the last generated invoice with fiscal year
 const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
   try{
-    // console.log("Make Transaction:",x)
     let company = '';
     let inVoiceDeleteList = []
-    console.log("Party Id:", x.partyId)
     let account = await Client_Associations.findOne({
       where:{
-        // CompanyId: companyId,
         ClientId: x.partyId
       }
     })
-    console.log("Account:",account)
     if(lastJB?.Charge_Heads?.length==0){
       inVoiceDeleteList.push(lastJB.id)
     }
@@ -752,7 +736,6 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
       ex_rate:x.ex_rate,
       partyType:x.partyType,
     }
-    // console.log("Result:",result)
     Invoice.destroy({where:{id:inVoiceDeleteList}})
     return result;
   }catch(e){
@@ -763,7 +746,6 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
 
 routes.get("/getAllInvoiceData", async(req, res) => {
   try{
-    console.log("Invoice ID:",req.headers)
     const InvTran = await Invoice_Transactions.findAll({
       where:{InvoiceId:req.headers.id}
     })
@@ -777,29 +759,6 @@ routes.get("/getAllInvoiceData", async(req, res) => {
       });
       vouchers.push(voucher.dataValues)
     }
-
-    // let heads = []
-    // console.log("party_id:", req.headers.party_id)
-    // for(let x of vouchers){
-    //   let party = await Client_Associations.findOne({
-    //     where:{ClientId:req.headers.party_id}
-    //   })
-    //   console.log("Client Id:", party.ChildAccountId)
-    //   const head = await Voucher_Heads.findAll({
-    //     where: {
-    //       VoucherId: x.id,
-    //       ChildAccountId: party.ChildAccountId,
-    //       narration: {
-    //         [Op.notLike]: '%Ex-Rate%'
-    //       }
-    //     }
-    //   });
-    //   head.forEach((y)=>{
-    //     heads.push(y.dataValues)
-    //   })
-    // }
-    
-    // console.log("party_id:", req.headers.party_id);
 
     const heads = [];
 
@@ -819,8 +778,6 @@ routes.get("/getAllInvoiceData", async(req, res) => {
         [partyId, partyAssoc?.ChildAccountId].filter(Boolean)
       ));
 
-      console.log("Candidate ChildAccountIds:", candidateChildIds);
-
       const head = await Voucher_Heads.findAll({
         where: {
           VoucherId: x.id,
@@ -838,7 +795,7 @@ routes.get("/getAllInvoiceData", async(req, res) => {
 
     res.json({status:'success', result:{InvTran, vouchers, heads}});
   }catch(error){
-    console.log(error)
+    console.error(error)
     res.json({status:'error', result:error});
   }
 })
@@ -853,7 +810,6 @@ routes.post("/makeInvoiceNew", async(req, res) => {
     const lastAB = await Invoice.findOne({where:{type:'Agent Bill'},   order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
 
     for(let x of result){
-      console.log(x)
       if(x.invoiceType=="Job Bill"){
         if(Object.keys(createdInvoice).length==0){
           createdInvoice = await createInvoices(lastJB, "JB", "Job Bill", req.body.companyId, req.body.type, x)
@@ -879,12 +835,7 @@ routes.post("/makeInvoiceNew", async(req, res) => {
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
     };
-    // console.log("Created Invoice",createdInvoice)
     const newInv = await Invoice.create(createdInvoice);
-    // console.log("Invoice Creation",newInv)
-    // const newCharges = await charges.map((x)=>{
-    //   return{ ...x, InvoiceId:newInv.id }
-    // })
     let chargesIds = []
     for(let x of charges){
       let chargeHeads = await Charge_Head.upsert({ ...x, InvoiceId:newInv.id, invoice_id: newInv.invoice_No });
@@ -894,7 +845,7 @@ routes.post("/makeInvoiceNew", async(req, res) => {
     await res.json({status: 'success', result: {chargesIds, newInv}});
   }
   catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status: 'error', result: error});
   }
 });
@@ -911,9 +862,6 @@ routes.post("/openingInvoice", async(req, res) => {
     const createdAt = moment(req.body.date).toDate();
     const lastOI = await Invoice.findOne({where:{type:'Opening Invoice'},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
     const lastOB = await Invoice.findOne({where:{type:'Opening Bill'},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
-    // console.log(req.body)
-    // console.log(lastOI)
-    // console.log(lastOB)
     const invoice = {
       invoice_No: `${req.body.companyId=="1"?'SNS':"ACS"}-${req.body.type}-${req.body.type=="OI"?lastOI!=null?lastOI.invoice_Id+1:1:lastOB!=null?lastOB.invoice_Id+1:1}/${moment().add(1, 'years').format("YY")}`,
       invoice_Id: req.body.type=="OI"?lastOI!=null?lastOI.invoice_Id+1:1:lastOB!=null?lastOB.invoice_Id+1:1,
@@ -936,7 +884,6 @@ routes.post("/openingInvoice", async(req, res) => {
       partyType: req.body.partyType
     }
     const invoices = await Invoice.create(invoice);
-    console.log(invoices.dataValues.createdAt)
 
     const check = await Vouchers.findOne({
       order: [["voucher_No", "DESC"]],
@@ -962,33 +909,12 @@ routes.post("/openingInvoice", async(req, res) => {
       updatedAt: invoices.dataValues.createdAt,
       voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
       voucher_Id: `${invoices.dataValues.companyId == 1 ? "SNS" : invoices.dataValues.companyId == 2 ? "CLS" : "ACS"}-${invoices.dataValues.payType=="Recievable"?"OI":"OB"}-${check == null ? 1 : parseInt(check.voucher_No) + 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
-    }
-
-    // console.log("Vouchers>>",vouchers)
-
-    
+    }    
 
     const voucher = await Vouchers.create({
       ...vouchers, // Spread your `vouchers` object
       updatedAt: invoices.dataValues.createdAt, // Explicitly set updatedAt to createdAt
     });
-
-    // let expenseAccount
-    // req.body.subType == "FCL"?expenseAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]}):
-    // req.body.subType == "LCL"?expenseAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]}):
-    // expenseAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT EXPENSE"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]})
-    // let incomeAccount
-    // req.body.subType == "FCL"?incomeAccount = await Child_Account.findOne({where:{title:"FCL FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]}):
-    // req.body.subType == "LCL"?incomeAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]}):
-    // incomeAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT INCOME"}, include:[{model:Parent_Account, where:{CompanyId:invoices.dataValues.companyId}}]})
-    // let account
-    console.log(invoices.dataValues)
-    // if(invoices.dataValues.partyType == "vendor"||invoices.dataValues.partyType == "agent"){
-    //   account = await Vendor_Associations.findOne({where:{VendorId:invoices.dataValues.party_Id}})
-    // }else{
-    //   account = await Client_Associations.findOne({where:{ClientId:invoices.dataValues.party_Id}})
-    // }
-    // console.log("Account Id:", account.dataValues)
     let Voucher_Head = []
     let narration = `${req.body.type=="OI"?"Opening Invoice":"Opening Bill"} ${invoices.dataValues.invoice_No} From ${invoices.dataValues.party_Name}`
 
@@ -1033,14 +959,12 @@ routes.post("/openingInvoice", async(req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Approve', req.body.invoice_No);
     res.json({status:'success', result:{invoices}});
   }catch(e){
-    console.log(e)
+    console.error(e)
   }
 })
 
 routes.get("/getOpeningInvoices", async(req, res) => {
   try{
-    console.log(req.headers.type)
-    console.log(req.headers.companyid)
     let type = req.headers.type=='OI'?"Opening Invoice":"Opening Bill"
     const result = await Invoice.findAll({
       where: {
@@ -1048,18 +972,14 @@ routes.get("/getOpeningInvoices", async(req, res) => {
         companyId: req.headers.companyid,
       }
     })
-    result.forEach((x)=>{
-      console.log(x.dataValues)
-    })
     res.json({status: 'success', result: result});
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({status: 'Error', result: e});
   }
 })
 routes.get("/getOpeningInvoice", async(req, res) => {
   try{
-    console.log(req.headers.id)
     let result = await Invoice.findOne({
       where: {
         id: req.headers.id
@@ -1071,7 +991,6 @@ routes.get("/getOpeningInvoice", async(req, res) => {
       },
       include:[{model:Voucher_Heads}]
     })
-    console.log(result)
     if(result == null){
       voucher = await Vouchers.findOne({
         where:{id: req.headers.id},
@@ -1085,7 +1004,7 @@ routes.get("/getOpeningInvoice", async(req, res) => {
     }
     res.json({status: 'success', result: {result, voucher}});
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({status: 'Error', result: e});
   }
 })
@@ -1099,7 +1018,7 @@ routes.post("/deleteOpeningInvoices", async(req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Delete', req.body.headers.invoice_No);
     res.json({status: 'success', result: req.body.headers.id});
   }catch(e){
-    console.log(e)
+    console.error(e)
   }
 })
 
@@ -1124,7 +1043,6 @@ routes.get("/getInvoices", async(req, res) =>{
 
 routes.post("/unApprove", async(req, res)=>{
   try{
-    console.log(req.body.id)
     const inv = await Invoice.update(
       { approved: 0 },
       { where: { id: req.body.id } } // Replace someInvoiceId with the actual ID or condition
@@ -1160,7 +1078,6 @@ routes.post("/approve", async(req, res) => {
     const Inv = await Invoice.findOne({where:{id:req.body.id}})
     let total = 0.0;
     let defaultTotal = 0.0
-    // console.log("Charge Heads:", chargesHeads)
     let payble = false
     let receivable = false
     let vendor = false
@@ -1209,7 +1126,6 @@ routes.post("/approve", async(req, res) => {
       }
     }
     const invoice = await Invoice.findOne({where:{id:req.body.id}})
-    // console.log("",invoice)
     const inv = await invoice.update({total:total, approved:1, payType: invPayType})
     await Charge_Head.update({approved:1, status:1}, {where:{InvoiceId:req.body.id}})
     const job = await SE_Job.findOne({where:{id:invoice.dataValues.SEJobId}})
@@ -1365,13 +1281,12 @@ routes.post("/approve", async(req, res) => {
   }
 
   await Voucher_Head.map(async(x)=>{
-    console.log(x.ChildAccountId)
      await Voucher_Heads.create(x)
   })
   createHistory(req.body.employeeId, 'Invoice', 'Approve', invoice.dataValues.invoice_No);
     res.json({status: 'success', result: req.body.id});
   }catch(error){
-    console.log(error)
+    console.error(error)
     res.json({status: 'error', result: error});
   }
   
@@ -1384,7 +1299,7 @@ routes.post("/approveHeads", async(req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Approve/Unapprove', req.body.invoice_No);
     res.json({status: 'success', result: result});
   }catch(error){
-    console.log(error)
+    console.error(error)
     res.json({status: 'error', result: error});
   }
 })
@@ -1530,14 +1445,13 @@ routes.get("/jobBalancing", async (req, res) => {
     });
     await res.json({ status: "success", result: result });
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
 
 routes.get("/invoiceBalancing", async (req, res) => {
   try {
-    console.log("Headers:", req.headers);
     let invoiceObj = {
       createdAt: {
         [Op.gte]: moment(req.headers.from).toDate(),
@@ -1563,11 +1477,9 @@ routes.get("/invoiceBalancing", async (req, res) => {
         },
       });
     }
-    console.log("Account:", account);
     if (account && account.ChildAccountId) {
       invoiceObj.party_Id = account.ChildAccountId.toString();
     }
-    console.log("InvoiceObj:", invoiceObj);
     const result = await Invoice.findAll({
       where: invoiceObj,
       attributes: [
@@ -1598,7 +1510,6 @@ routes.get("/invoiceBalancing", async (req, res) => {
         },
       ],
     });
-    console.log("Result Count:", result.length);
     res.json({ status: "success", result });
   } catch (error) {
     console.error(error);
@@ -1643,7 +1554,7 @@ routes.post("/uploadbulkInvoicesTest", async (req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Upload', req.body.invoice_No);
     await res.json({ status:"success", result:resultOne?resultOne.id:resultTwo.id });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.json({ status: "error", result: error });
   }
 });
@@ -1670,7 +1581,7 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
       result = await Invoice.create(temp)
 
     }catch(e){
-      console.log("Invoice creater",e)
+      console.error("Invoice creater",e)
     }
     let vouchers
     let invoiceNo = temp.invoice_No.slice(0, -2)
@@ -1698,19 +1609,10 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
             }
           }
         );
-      } else {
-        console.log('No voucher found with the specified narration.');
       }
-      // vouchers = await Vouchers.update({
-      //   where: {
-      //     voucherNarration: {
-      //       [Op.like]: `%${invoiceNo}%`
-      //     }
-      //   }
-      // });
 
     }catch(e){
-      console.log("Voucher finder",e)
+      console.error("Voucher finder",e)
     }
     let Invoice_Transaction = {}
     for(let x of vouchers){
@@ -1724,16 +1626,7 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
           { where: { id: x.id } }// Condition
         );
       }
-    } 
-    // vouchers.forEach((x)=>{
-    //   if(x.voucherNarration.includes(invoiceNo)){
-    //     Invoice_Transaction = {
-    //       InvoiceId: result.dataValues.id,
-    //       VoucherId: x.id
-    //     }
-    //     await Invoice.update
-    //   }
-    // })  
+    }
     let resultThree
     try{
       resultThree = await Invoice_Transactions.create({
@@ -1744,10 +1637,11 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
       })
       
     }catch(e){
-      console.log("Invoice Transaction creater",e)
+      console.error("Invoice Transaction creater",e)
     }
     res.json({ status: "success", result: result });
   } catch (error) {
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 })
@@ -1755,7 +1649,6 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
 routes.post("/updateVouchersWithInvoices", async (req, res) => {
   try {
     const allInvoices = await Invoice.findAll();
-    console.log(allInvoices)
     for (const invoice of allInvoices) {
       
       const invoiceNo = invoice.dataValues.invoice_No;
@@ -1769,7 +1662,6 @@ routes.post("/updateVouchersWithInvoices", async (req, res) => {
       });
       for (const voucher of vouchers) {
         const updatedInvoices = voucher.invoices ? `${voucher.invoices},${invoiceId}` : invoiceId;
-        console.log(updatedInvoices)
         await Vouchers.update(
           {
             invoices: updatedInvoices,
@@ -1785,7 +1677,7 @@ routes.post("/updateVouchersWithInvoices", async (req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Update', req.body.invoice_No);
     res.json({ status: 'success', message: 'All vouchers updated with invoice IDs.' });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     res.status(500).json({ status: 'error', message: e.message });
   }
 });
@@ -1841,7 +1733,7 @@ routes.post("/createBulkInvoices", async (req, res) => {
     createHistory(req.body.employeeId, 'Invoice', 'Create', req.body.invoice_No);
     await res.json({ status: "success" });
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
@@ -1860,7 +1752,7 @@ routes.get("/getClientsWithACPayble", async (req, res) => {
     })
     await res.json({ status: "success", result});
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
@@ -1870,110 +1762,10 @@ routes.get("/invoiceMatching", async (req, res) => {
     const result = await Invoice.findAll({})
     await res.json({ status: "success", result});
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
-
-// routes.get("/ageingSummary", async (req, res) => {
-//   try {
-//     // Prefer req.query for GET: /invoices?from=01-01-2026&to=31-01-2026
-//     const { from, to } = req.headers; // or req.body if POST
-//     console.log(req.headers)
-//     // Parse known format (e.g., DD-MM-YYYY). Use strict parsing (true).
-//     const start = moment(from, 'DD-MM-YYYY', true).startOf('day');
-//     const end   = moment(to,   'DD-MM-YYYY', true).endOf('day');
-
-//     if (!start.isValid() || !end.isValid()) {
-//       return res.status(400).json({ status: 'error', message: 'Invalid date format. Use DD-MM-YYYY' });
-//     }
-//     if (end.isBefore(start)) {
-//       return res.status(400).json({ status: 'error', message: '`to` must be on/after `from`' });
-//     }
-
-//     const condition = {};
-
-//     if (req.headers.ageing_account != 'undefined' && req.headers.ageing_account != '') {
-//       condition.party_Id = req.headers.ageing_account;
-//     }
-
-//     const companyId = (req.headers.ageing_company || "")
-//     .split(',')
-//     .map(id => id.trim())
-//     .filter(id => !isNaN(id));
-
-//     const RP = (req.headers.ageing_rp || "")
-//     .split(',')
-//     .map(id => id.trim())
-//     // .filter(id => !isNaN(id));
-
-//     let partyType = ['client', 'vendor']
-//     if(req.headers.ageing_partytype == 'Local'){
-//       partyType = ['client', 'vendor']
-//     }
-//     if(req.headers.ageing_partytype == 'Agent'){
-//       partyType = ['agent']
-//     }
-//     console.log("Party Type", partyType)
-//     console.log("CompanyId", companyId)
-//     console.log("RP", RP)
-//     console.log("Condition", condition)
-
-//     const result = await Invoice.findAll({
-//       where: {
-//         updatedAt: {
-//           [Op.between]: [start.toDate(), end.toDate()],
-//         },
-//         companyId: {
-//           [Op.in]: companyId
-//         },
-//         partyType: {
-//           [Op.in]: partyType
-//         },
-//         payType: {
-//           [Op.in]: RP
-//         },
-//         // currency: req.headers.ageing_currency,
-//         ...condition
-//       },
-//       include: [
-//         {
-//           model: Invoice_Transactions
-//         },
-//       ]
-//       // include: [...] // if needed
-//       // attributes: [...] // if needed
-//     });
-//     let temp = []
-//     for(let rec of result){
-//       let account = await Child_Account.findOne({
-//         where: {
-//           id: rec.party_Id
-//         }
-//       })
-//       console.log("Account", account)
-//       // rec.partyType = account.dataValues.type
-//       rec.partyName = account.dataValues.title
-//       rec.partyCode = account.dataValues.code
-//       temp.push(rec)
-//     }
-//     console.log("Result Length", temp.length)
-//     return res.json({ status: 'success', temp });
-//   } catch (error) {
-//     console.log(error)
-//     res.json({ status: "error", result: error });
-//   }
-// });
-
-// Make sure you have these imports in your module:
-// const moment = require('moment');
-// const { Op } = require('sequelize');
-// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust paths
-
-// Ensure imports:
-// const moment = require('moment');
-// const { Op, col, Sequelize } = require('sequelize');
-// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust path
 
 routes.get("/ageingSummary", async (req, res) => {
   try {
@@ -2003,8 +1795,6 @@ routes.get("/ageingSummary", async (req, res) => {
     // ---------- 2) Inputs (prefer query, fallback to headers) ----------
     const q = req.query || {};
     const h = req.headers || {};
-
-    console.log("Headers:", h)
 
     const fromRaw = q.from ?? h.from;
     const toRaw   = q.to   ?? h.to;
@@ -2073,8 +1863,6 @@ routes.get("/ageingSummary", async (req, res) => {
       where.payType = { [Op.in]: payTypes };
     }
 
-    console.log("WHERE:", where);
-
     // ---------- 5) Query invoices (no N+1 for transactions) ----------
     const invoices = await Invoice.findAll({
       where,
@@ -2084,7 +1872,6 @@ routes.get("/ageingSummary", async (req, res) => {
         ["updatedAt", "ASC"],
         [Invoice_Transactions, "createdAt", "ASC"],
       ],
-      // logging: console.log,
     });
 
     if (!invoices || invoices.length === 0) {
@@ -2113,7 +1900,6 @@ routes.get("/ageingSummary", async (req, res) => {
     const accounts = await Child_Account.findAll({
       where: { id: { [Op.in]: accountWhereIds } },
       attributes: ["id", "title", "code"],
-      // logging: console.log,
     });
 
     const accountMap = new Map(
@@ -2150,18 +1936,12 @@ routes.get("/ageingSummary", async (req, res) => {
       partyCode,
       invoices,
     }));
-    console.log("Result Length:", temp.length)
     return res.json({ status: "success", temp });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ status: "error", message: "Internal server error", result: error });
   }
 });
-// Make sure these are imported in your module:
-// const moment = require('moment');
-// const util = require('util');
-// const { Op } = require('sequelize');
-// const { Invoice, Invoice_Transactions, Child_Account } = require('../models'); // adjust path
 
 
 module.exports = routes;        

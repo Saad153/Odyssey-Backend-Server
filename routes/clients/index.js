@@ -65,9 +65,7 @@ const createAccountList = (parent, child, id) => {
 
 routes.post("/addClient", async(req, res)=>{
     try{
-        // console.log(req.body)
         const result = await Clients.create(req.body)
-        console.log(result)
         res.json({
             status:'success', 
             result:result.dataValues
@@ -92,21 +90,12 @@ routes.post("/createClientAssociations", async(req, res) => {
             },
             attributes:['id', 'title', 'ParentAccountId'],
         })
-        // for(let x of result1){
-        //     console.log(x.dataValues)
-
-        // }
-        // console.log(result1.dataValues.id)
-        // console.log(req.body.companyId)
-        // console.log(ChAcc.dataValues.ParentAccountId)
-        // console.log(ChAcc.dataValues.id)
         const result = await Client_Associations.create({
             ClientId: result1.dataValues.id,
             CompanyId: req.body.companyId,
             ParentAccountId: ChAcc.dataValues.ParentAccountId,
             ChildAccountId: ChAcc.dataValues.id
         });        
-        console.log(result.dataValues)
         res.json({status: 'success', result:result.dataValues});
     }catch(e){
         res.json({status:'error', result:e});
@@ -141,18 +130,11 @@ routes.post("/createClient", async (req, res) => {
         transaction: t
       });
 
-      if (!check) {
-        // keep your pattern (you had check.code = 0 but check could be null)
-        // not changing logic: we’ll just guard where it's used below
-      }
-
       value.accountRepresentatorId = value.accountRepresentatorId == "" ? null : value.accountRepresentatorId;
       value.salesRepresentatorId = value.salesRepresentatorId == "" ? null : value.salesRepresentatorId;
       value.docRepresentatorId = value.docRepresentatorId == "" ? null : value.docRepresentatorId;
       value.authorizedById = value.authorizedById == "" ? null : value.authorizedById;
       req.body.pAccountName ? value.nongl = '0' : value.nongl = '1';
-      // value.nongl = null
-      console.log(value);
 
       const check2 = await Clients.findOne({
         where: { name: value.name },
@@ -169,24 +151,12 @@ routes.post("/createClient", async (req, res) => {
         { ...value, code: parseInt(check?.code || 0) + 1 },
         { transaction: t }
       );
-      console.log(result);
 
       if (req.body.pAccountName) {
-        console.log("Creating associated accounts...", req.body.pAccountName)
         const accounts = await Child_Account.findOne({
           where: { id: req.body.pAccountName },
           transaction: t
         });
-
-        // const maxCode = await Child_Account.findOne({
-        //   attributes: [
-        //     [Sequelize.fn('MAX', Sequelize.cast(Sequelize.col('code'), 'INTEGER')), 'maxCode']
-        //   ],
-        //   where: {
-        //     ChildAccountId: accounts.id
-        //   },
-        //   transaction: t
-        // });
 
         const maxCode = await Child_Account.findOne({
         attributes: [
@@ -200,7 +170,6 @@ routes.post("/createClient", async (req, res) => {
         raw: true
         });
 
-        console.log("Max Code: ", maxCode.maxCode);
 
         const account = await Child_Account.create({
           title: result.name,
@@ -209,11 +178,6 @@ routes.post("/createClient", async (req, res) => {
           code: maxCode.maxCode + 1 || 1,
           ChildAccountId: accounts.id
         }, { transaction: t });
-
-        // await Client_Associations.bulkCreate(
-        //   createAccountList(accounts, accountsList, result.id),
-        //   { transaction: t }
-        // );
         await Client_Associations.create({
           ClientId: result.id,
           ChildAccountId: account.id,
@@ -276,16 +240,15 @@ routes.post("/createClientInBulk", async(req, res) => {
             value.docRepresentatorId     = null;
             value.authorizedById         = null;
             value.createdBy              = "";
-            const result = await Clients.create({...value}).catch((x)=>console.log(x))
+            const result = await Clients.create({...value}).catch((x)=>console.error(x))
             const accounts = await Parent_Account.findAll({
                 where: {
                     CompanyId: { [Op.or]: [1, 2, 3] },
                     title: { [Op.or]: ['ACCOUNT RECEIVABLE', 'ACCOUNT PAYABLE'] }
                 }
-            }).catch((x)=>console.log("===========1=============", x))
-            const accountsList = await Child_Account.bulkCreate(createChildAccounts(accounts, result.name)).catch((x)=>console.log("===========2===========", x))
-            Client_Associations.bulkCreate(createAccountList(accounts, accountsList, result.id)).catch((x)=>console.log("===========3===========", x))
-            console.log(i)
+            }).catch((x)=>console.error("===========1=============", x))
+            const accountsList = await Child_Account.bulkCreate(createChildAccounts(accounts, result.name)).catch((x)=>console.error("===========2===========", x))
+            Client_Associations.bulkCreate(createAccountList(accounts, accountsList, result.id)).catch((x)=>console.error("===========3===========", x))
         });
         
         await res.json({status:'success'});
@@ -431,7 +394,6 @@ routes.get("/getForCharges", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
   try {
-    console.log(req.headers);
 
     let obj = {
     [Op.or]: [
@@ -461,8 +423,6 @@ routes.get("/getForCharges", async (req, res) => {
       ],
       order: [["createdAt", "DESC"]]
     });
-
-    console.log(result.length);
 
     res.json({ status: "success", result });
   } catch (error) {
@@ -502,23 +462,20 @@ routes.get("/getChildAccounts", async(req, res) => {
             }
         })
         if(result){
-            console.log(result)
             res.json({status:'success', result:result});
         }
         if(result1){   
-            console.log(result1)
             res.json({status:'success', result:result1});
         }
     }
     catch (error) {
-        console.log(error)
+        console.error(error)
       res.json({status:'error', result:error});
     }
 })
 
 routes.post("/findAccounts", async(req, res) => {
     try {
-        console.log(req.body);
         const result = await Parent_Account.findAll({
             where: {
                 CompanyId: {
@@ -545,7 +502,7 @@ routes.get("/getClientAssociations", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-        console.log(error)
+        console.error(error)
         res.json({status:'error', result:error});
     }
 });
@@ -632,8 +589,6 @@ routes.post("/bulkCreate", async (req, res) => {
             as: 'parent'
         }
     });
-
-    console.log("Accounts Fetched", accounts[10].dataValues.id)
 
     for (let party of parties) {
         let ops = '';
