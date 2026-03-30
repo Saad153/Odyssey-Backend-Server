@@ -1082,6 +1082,7 @@ routes.get("/getOpeningBalances", async(req, res) => {
           ],
         },
       ],
+      order: [["createdAt", "DESC"]], // ✅ latest first
     });
     
     res.json({status:'success', result:results});

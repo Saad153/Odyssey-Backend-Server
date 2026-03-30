@@ -30,6 +30,7 @@ routes.post("/create", async(req, res) => {
         res.json({status:'success', result: result});
     }
     catch (error) {
+      console.error(error);
       res.json({status:'error', result:error.message});
     }
 });
@@ -47,6 +48,7 @@ routes.post("/edit", async(req, res) => {
         res.json({status:'success', result: result});
     }
     catch (error) {
+      console.error(error);
       res.json({status:'error', result:error.message});
     }
 });
@@ -58,7 +60,8 @@ routes.get('/get', async (req, res) =>{
     res.json({status:"success", result:result})        
     }
     catch (error) {
-    res.json({status:"error", result:error.message})        
+      console.error(error);
+      res.json({status:"error", result:error.message})        
     }
 })
 
@@ -69,6 +72,7 @@ routes.get('/getAll', async (req, res) =>{
     })
     res.json({status:"success", result:result})        
   } catch (error) {
+    console.error(error);
     res.json({status:"error", result:error.message})        
   }
 })
@@ -89,6 +93,7 @@ routes.get('/searchJobs', async (req, res) => {
     res.json({status:"success", result:result})        
   }
   catch (error) {
+    console.error(error);
     res.json({status:"error", result:error.message})        
   }
 })
