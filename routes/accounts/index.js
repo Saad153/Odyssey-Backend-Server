@@ -1024,10 +1024,11 @@ routes.post("/createOpeningBalances", async(req, res) => {
         ...x,
         VoucherId: id,
         amount: `${x.amount}`,
-        createdAt:moment().month() < 6
-        ? moment().subtract(1, 'year').startOf('year').month(5).endOf('month')
-        : moment().startOf('year').month(5).endOf('month'),
-      });
+        createdAt:
+          moment().month() < 6
+            ? moment().startOf('year').month(5).endOf('month')
+            : moment().add(1, 'year').startOf('year').month(5).endOf('month')
+              });
     });
     return result;
   };
@@ -1041,8 +1042,8 @@ routes.post("/createOpeningBalances", async(req, res) => {
     const result = await Vouchers.create({
       ...req.body,
       createdAt: moment().month() < 6
-      ? moment().subtract(1, 'year').startOf('year').month(5).endOf('month')
-      : moment().startOf('year').month(5).endOf('month'),
+        ? moment().startOf('year').month(5).endOf('month')
+        : moment().add(1, 'year').startOf('year').month(5).endOf('month'),
       CompanyId:req.body.companyId,
       voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
       voucher_Id: `${
