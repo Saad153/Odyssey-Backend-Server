@@ -2,7 +2,6 @@ const { Child_Account, Parent_Account } = require("../../functions/Associations/
 const { Invoice, Invoice_Losses, Invoice_Transactions } = require("../../functions/Associations/incoiceAssociations");
 const { Vouchers, Voucher_Heads }=require("../../functions/Associations/voucherAssociations");
 const { SE_Job, SE_Equipments, Commodity } = require("../../functions/Associations/jobAssociations/seaExport");
-// const { Vendors } = require("../../functions/Associations/vendorAssociations");
 const { Clients }=require("../../functions/Associations/clientAssociation");
 const { Bl } = require('../../functions/Associations/jobAssociations/seaExport');
 
@@ -16,11 +15,8 @@ const Op = Sequelize.Op;
 
 routes.get(`/${url}/job`, async(req, res) => {
   try {
-    console.log("Headers>>", req.headers)
     let obj = {};
     obj.approved ='true';
-    // obj.companyId=req.headers.company;
-    // Apply different filters based on the company header value
     if (req.headers.company === '4') {
       obj.companyId = { [Op.in]: ['1', '3'] };
     } else {
@@ -35,7 +31,6 @@ routes.get(`/${url}/job`, async(req, res) => {
     req.headers.client?obj.ClientId=req.headers.client:null;
     req.headers.overseasagent?obj.overseasAgentId=req.headers.overseasagent:null;
     req.headers.jobtype?obj.operation = { [Op.in]: req.headers.jobtype.split(",") }:null;
-    console.log("Object", obj)
     const result = await SE_Job.findAll({
       attributes:['id','jobNo','fd', 'createdAt', 'jobType', 'operation', 'weight',
         'subType','companyId','pcs','pol','exRate','costCenter','nomination',
@@ -68,12 +63,11 @@ routes.get(`/${url}/job`, async(req, res) => {
         { model:Employees, as:'sales_representator', attributes:['name'] },
       ]
     });
-    console.log("Result", result.length)
     res.json({status:'success', result:result});
 
   }
   catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status: 'error', result: error});
   }
 });
@@ -95,6 +89,7 @@ routes.post(`/${url}/getGainLoss`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
@@ -138,40 +133,25 @@ routes.get(`/${url}/full`, async(req, res) => {
         include:[{
           model:Child_Account,
           attributes:['title'],
-          // include:[{
-          //   model:Voucher_Heads,
-          //   where:{
-          //     createdAt: {
-          //       [Op.gte]: moment(req.headers.from).toDate(),
-          //       [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
-          //     }
-          //   },
-          //   attributes:['defaultAmount', 'amount', 'type'],
-          //   include:[{
-          //     model:Vouchers,
-          //     attributes:['vType', 'type', 'exRate'],
-          //   }]
-          // }]
         }]
       }]
     });
     res.json({status:'success', result:{expense, revenue}});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
 
 routes.get(`/${url}/test`, async(req, res) => {
   try {
-
     let dateObj = {
       createdAt: {
         [Op.gte]: moment(req.headers.from).toDate(),
         [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
       }
     }
-
     const result = await Child_Account.findAll({
       where:{ParentAccountId:req.headers.id},
       attributes:['title'],
@@ -190,6 +170,7 @@ routes.get(`/${url}/test`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
@@ -200,6 +181,7 @@ routes.get(`/${url}/search`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status:'error', result:error});
   }
 });
@@ -207,7 +189,6 @@ routes.get(`/${url}/search`, async(req, res) => {
 async function getAccountVoucherHierarchy(parentId = null, company) {
   const accounts = await Child_Account.findAll({
     where: { ChildAccountId: parentId },
-    // attributes: ['id', 'title', 'editable', 'ChildAccountId', 'code', 'subCategory', 'createdAt'],
     order: [['id', 'ASC']],
     include: [{
       model: Voucher_Heads,
@@ -218,8 +199,6 @@ async function getAccountVoucherHierarchy(parentId = null, company) {
       }]
     }]
   });
-
-  // Recursively attach children
   const result = await Promise.all(
     accounts.map(async (account) => {
       const children = await getAccountVoucherHierarchy(account.id, company);
@@ -235,41 +214,11 @@ async function getAccountVoucherHierarchy(parentId = null, company) {
 
 routes.get(`/${url}/incomeStatement`, async(req, res) => {
   try {
-    // console.log("Headers>>", req.headers.company)
-    // const result = await Child_Account.findAll({
-    //   where:{
-    //     id:[1, 2]
-    //   },
-    //   include:[{
-    //     model:Child_Account,
-    //     as: 'children',
-    //     attributes:['id'],
-    //     where:{CompanyId:req.headers.company},
-    //       include:[{
-    //         model:Child_Account,
-    //         as: 'children',
-    //         attributes:['id', 'title'],
-    //         // order: [[{ model: Voucher_Heads }, 'createdAt', 'DESC']],
-    //         include:[{
-    //           model:Voucher_Heads,
-    //           // order: [['createdAt', 'ASC']],
-    //           attributes:['amount', 'defaultAmount', 'type', 'accountType', 'settlement', 'createdAt'],
-    //           where:{
-    //             createdAt: {
-    //               [Op.gte]: moment(req.headers.from).toDate(),
-    //               [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
-    //             }
-    //           },
-    //         }]
-    //       }],
-    //   }]
-    // })
-
     const result = await getAccountVoucherHierarchy(null, req.headers.company);
-
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });

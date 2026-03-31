@@ -7,19 +7,10 @@ const { Accounts } = require('../../models/');
 const { Invoice } = require("../../functions/Associations/incoiceAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
 const { Client_Associations, Clients } = require('../../functions/Associations/clientAssociation');
-// const { Vendor_Associations, Vendors } = require('../../functions/Associations/vendorAssociations');
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info } = require("../../functions/Associations/jobAssociations/seaExport");
 const { createHistory } = require('../../functions/history');
 
-//Voucher Types
-// (For Jobs)
-// Job Reciept 
-// Job Recievable 
-// Job Payment 
-// Job Payble 
-// (For Expense)
-// Expenses Payment
 
 async function getAccountHierarchy(parentId = null) {
   const accounts = await Child_Account.findAll({
@@ -45,7 +36,6 @@ async function getAccountHierarchy(parentId = null) {
 async function getAccountVoucherHierarchy(parentId = null, company) {
   const accounts = await Child_Account.findAll({
     where: { ChildAccountId: parentId },
-    // attributes: ['id', 'title', 'editable', 'ChildAccountId', 'code', 'subCategory', 'createdAt'],
     order: [['id', 'ASC']],
     include: [{
       model: Voucher_Heads,
@@ -79,7 +69,6 @@ async function getAllAccounts(id){
       include:[{
         model:Child_Account,
         as: 'parent',
-        // where:{CompanyId:id},
         attributes:['id', 'title', 'editable', 'ChildAccountId', 'code'],
         include:[{
           model:Child_Account,
@@ -92,7 +81,7 @@ async function getAllAccounts(id){
     return result;
     
   }catch(err){
-    console.log(err)
+    console.error(err)
   }
 };
 
@@ -238,17 +227,15 @@ routes.post("/createParentAccount", async(req, res) => {
     }
   }
   catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
 
 routes.post("/createChildAccount", async (req, res) => {
   try {
-    console.log(req.body)
     const { title, ChildAccountId, category, editable } = req.body;
 
-    // Check if a child account with the same title under the same parent exists
     const existing = await Child_Account.findOne({
       where: {
         title,
@@ -260,7 +247,7 @@ routes.post("/createChildAccount", async (req, res) => {
       return res.json({ status: 'exists' });
     }
 
-    // Determine the code based on parent account
+
     let parentCode = '0';
     if (ChildAccountId) {
       const parent = await Child_Account.findOne({
@@ -270,7 +257,7 @@ routes.post("/createChildAccount", async (req, res) => {
       parentCode = parent.code;
     }
 
-    // Find the last child under this parent to increment the code
+
     const lastChild = await Child_Account.findOne({
       where: {
         code: {
@@ -440,8 +427,6 @@ routes.get("/getAccountsForTransaction", async(req, res) => {
       obj = { title:req.headers.type }
     }
     try {
-      console.log(obj)
-      console.log(ChildObj)
       const result = await Child_Account.findAll({
         where:ChildObj,
         include:[{
@@ -548,6 +533,7 @@ routes.get("/getAllChilds", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -560,37 +546,10 @@ routes.get("/getAllParents", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
-
-// routes.get("/getAllParentswithChildsbyAccountId", async(req, res) => {
-//   try {
-//     // const accountId = req.headers.accountid || req.query.accountId || req.body.accountId;
-//     // const companyId = req.headers.companyid || req.query.companyId || req.body.companyId;
-
-//     const whereClause = {};
-//     // if (accountId) whereClause.AccountId = accountId;
-//     // if (companyId) whereClause.CompanyId = companyId;
-
-//     const result = await Child_Account.findAll({
-//       attributes: ["title", "id", "code"],
-//       where: whereClause,
-//       include: [{
-//         model: Child_Account,
-//         as: 'children',
-//         attributes: ["title", "id", "code"],
-//         required: false
-//       }],
-//       order: [['id', 'ASC']]
-//     });
-
-//     res.json({status: 'success', result});
-//   } catch (error) {
-//     console.error('getAllParentswithChildsbyAccountId error:', error);
-//     res.status(500).json({status: 'error', result: error.message || error});
-//   }
-// });
 
 routes.get("/getAllParentswithChildsbyAccountId", async (req, res) => {
   try {
@@ -607,7 +566,6 @@ routes.get("/getAllParentswithChildsbyAccountId", async (req, res) => {
       }],
       order: [["id", "ASC"]],
     });
-    console.log("Where:", whereClause, "Found:", result.length);
     res.json({ status: "success", result });
   } catch (error) {
     
@@ -741,7 +699,6 @@ function buildChildInclude(depth, companyId) {
 
 routes.get("/balanceSheetOld", async(req, res) => {
   try{
-    console.log("Fetching account voucher hierarchy...", req.headers.companyid)
     const accounts = await getAccountVoucherHierarchy(null, parseInt(req.headers.companyid));
 
     res.json({status:'success', result:{ accounts }});
@@ -997,7 +954,7 @@ routes.get("/getLedger", async(req, res) => {
     
     res.json({status:'success', result:result});
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -1099,11 +1056,11 @@ routes.post("/createOpeningBalances", async(req, res) => {
       }`,
     });
     let dataz = await setVoucherHeads(result.id, req.body.Voucher_Heads);
-    console.log(dataz)
     await Voucher_Heads.bulkCreate(dataz);
     res.json({status:'success', result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
@@ -1125,6 +1082,7 @@ routes.get("/getOpeningBalances", async(req, res) => {
           ],
         },
       ],
+      order: [["createdAt", "DESC"]], // ✅ latest first
     });
     
     res.json({status:'success', result:results});
@@ -1178,13 +1136,6 @@ routes.get("/getPartySetupAccounts", async (req, res) => {
 
 routes.post("/deleteAll", async(req, res) => {
   try {
-    // await Parent_Account.destroy({where:{}})
-    // await Child_Account.destroy({where:{}})
-    // await Clients.destroy({where:{}})
-    // await Vendors.destroy({where:{}})
-    // await Client_Associations.destroy({where:{}})
-    // await Vendor_Associations.destroy({where:{}})
-    // await Invoice.destroy({where:{}})
     res.json({status:'success'});
   }
   catch (error) {
@@ -1193,10 +1144,6 @@ routes.post("/deleteAll", async(req, res) => {
 });
 routes.post("/deleteJobs", async(req, res) => {
   try {
-    // await SE_Job.destroy({where:{}})
-    // await SE_Equipments.destroy({where:{}})
-    // await Bl.destroy({where:{}})
-    // await Container_Info.destroy({where:{}})
     res.json({status:'success'});
   }
   catch (error) {
@@ -1205,12 +1152,6 @@ routes.post("/deleteJobs", async(req, res) => {
 });
 routes.post("/deleteInvoices", async(req, res) => {
   try {
-    // const result = await Invoice.destroy({
-    //   where:{
-    //     companyId:'3',
-    //     currency:"USD"
-    //   }
-    // })
     res.json({status:'success'});
   }
   catch (error) {
@@ -1219,15 +1160,6 @@ routes.post("/deleteInvoices", async(req, res) => {
 });
 routes.post("/testDeleteVouchers", async (req, res) => {
   try {
-
-    // await Vouchers.destroy({where:{}})
-    // await Voucher_Heads.destroy({where:{}})
-    // await Invoice.destroy({where:{}});
-    // await Client_Associations.destroy({where:{}});
-    // await Vendor_Associations.destroy({where:{}});
-    // await Child_Account.destroy({where:{}});
-    // await Parent_Account.destroy({where:{}});
-
     await res.json({ status: "success"});
   } catch (error) {
     res.json({ status: "error", result: error });
@@ -1376,7 +1308,6 @@ routes.post("/importAccounts", async(req, res) => {
     for(let x of obj.cAccounts){
       let parentId = 0
       for(let y of pAccounts){
-        // console.log(x.Parent.AccountName, y.title)
         if(x.Parent.AccountName==y.title){
           parentId = y.id
           let temp = {

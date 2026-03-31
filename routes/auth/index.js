@@ -17,15 +17,12 @@ const makeAccessList = (data) => {
 routes.post("/login", async(req, res)=>{
     const { contact, password, username } = req.body
     const users = await Employees.findOne({
-      // where:{ [Op.or]: [{username: username}, {contact:contact}] }, 
       where: {
         username: username
       },
       include:[
         { model:Access_Levels, attributes:['access_name'], required: false }
     ]})
-    // console.log(username, password)
-    // console.log(users)
     if(users){
       if(password==users.password){
         const payload = { designation:users.designation, username:`${users.name}`,loginId:`${users.id}`, access:makeAccessList(users.Access_Levels)}

@@ -6,7 +6,6 @@ module.exports = (sequelize, DataTypes) => {
         customerRef:{ type:DataTypes.STRING },
         fileNo:{ type:DataTypes.STRING },
         shipStatus:{ type:DataTypes.STRING },
-        //vessel: { type:DataTypes.STRING },
         teu: { type:DataTypes.STRING },
         bkg: { type:DataTypes.STRING },
         pcs: { type:DataTypes.STRING },

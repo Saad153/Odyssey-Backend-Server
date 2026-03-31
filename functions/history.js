@@ -1,5 +1,4 @@
 const { sequelize } = require("../models");
-// const History = require("../models/History");
 const { History } = require('../models/');
 
 const createHistory = async (employeeId, formName, Type, docNo) => {

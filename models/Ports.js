@@ -23,7 +23,6 @@ module.exports = (sequelize, DataTypes) => {
         },
         operation: {
             type: DataTypes.STRING,
-            // allowNull: false,
             validate: {
                 notEmpty: true
             }

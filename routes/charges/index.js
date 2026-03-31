@@ -6,7 +6,6 @@ const { createHistory } = require('../../functions/history');
 
 routes.post("/create", async(req, res) => {
     try {
-      // console.log(req.body)
       let data = req.body.data
       delete data.id
       const check = await Charges.max("code")
@@ -17,13 +16,12 @@ routes.post("/create", async(req, res) => {
       res.json({status:'success', result:result })
     }
     catch (error) {
-      console.log(error)
+      console.error(error)
       res.json({status:'error', result:error});
     }
 });
 
 routes.post("/edit", async(req, res) => {
-  console.log(req.body)
   let tempData = {...req.body.data};
   try {
     const exists = await Charges.findOne({
@@ -60,7 +58,7 @@ routes.post("/delete", async(req, res) => {
       res.json({status:'success' });
     }
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({status:'error', result:e});
   }
 })
@@ -72,7 +70,7 @@ routes.post("/status", async(req, res) => {
     createHistory(req.body.employeeId, 'Charge', 'Delete', charge.name);
     res.json({status:'success' });
   }catch(e){
-    console.log(e)
+    console.error(e)
     res.json({status:'error', result:e});
   }
 })
@@ -84,19 +82,19 @@ routes.get("/get", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });
 
 routes.post("/bulkCreate", async(req, res) => {
   try {
-    // console.log(req.body)
     let data = req.body
     await Charges.bulkCreate(data);
     res.json({status:'success' })
   }
   catch (error) {
-    console.log(error)
+    console.error(error)
     res.json({status:'error', result:error});
   }
 });

@@ -9,12 +9,4 @@ Employees.hasMany(Access_Levels, {
 });
 Access_Levels.belongsTo(Employees);
 
-// Company.hasMany(Employees, {
-//     foriegnKey:{
-//         type: DataTypes.UUID,
-//         allowNull:false
-//     }
-// });
-// Employees.belongsTo(Company);
-
 module.exports = { Access_Levels, Employees }

@@ -13,6 +13,7 @@ routes.post("/create", async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
+      console.error(error)
       res.json({status:'error', result:error});
     }
 });
@@ -25,6 +26,7 @@ routes.get("/get", async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
+      console.error(error)
       res.json({status:'error', result:error});
     }
 });
@@ -49,7 +51,6 @@ routes.post("/edit", async(req, res) => {
 routes.post("/uploadCommodities", async (req, res) => {
   let  i = 0
     try{
-        console.log(req.body.Commodities.length)
         for(let c of req.body.Commodities){
           i++
             await Commodity.create({

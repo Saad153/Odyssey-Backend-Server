@@ -3,12 +3,10 @@ const Op = Sequelize.Op;
 const db = require("../../models");
 const moment = require("moment");
 const routes = require('express').Router();
-// const { History } = require("../../functions/Associations/historyAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Voucher_Heads } = require('../../functions/Associations/voucherAssociations');
-// const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { createHistory } = require('../../functions/history');
 const { types } = require('pg');
 
@@ -104,7 +102,6 @@ routes.post("/createClientAssociations", async(req, res) => {
 })
 
 routes.post("/createClient", async (req, res) => {
-  // Start a managed transaction (auto-commit/rollback)
   const resultPayload = await db.sequelize.transaction(async (t) => {
     try {
       let value = req.body;
@@ -299,11 +296,10 @@ routes.post("/editClient", async (req, res) => {
       res.json({ status: 'success' });
     } catch (error) {
       console.error(error);
-      // Throwing inside managed transaction triggers automatic rollback
       throw error;
     }
   }).catch((error) => {
-    // Send error only once the transaction block reports failure
+    console.error(error)
     return res.json({ status: 'error', result: error });
   });
 });
@@ -312,7 +308,6 @@ routes.post("/editClient", async (req, res) => {
 routes.get("/getClients", async(req, res) => {
     try {
         const result = await Clients.findAll({
-            // where:{[Op.or]:[{nongl:'0'}, {[Op.eq]:{nongl:null}}]},
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
             order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] ,
             include: [{
@@ -323,6 +318,7 @@ routes.get("/getClients", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
+        console.error(error)
       res.json({status:'error', result:error});
     }
 });

@@ -15,7 +15,6 @@ function getAccessLevels(levels, id){
 }
 
 routes.post("/createEmployee", async(req, res) => {
-    console.log(req.body)
     try {
         const result = await Employees.findOne({
             where: {
@@ -42,7 +41,6 @@ routes.post("/createEmployee", async(req, res) => {
                 department:req.body.values.selectDepart,
                 manager:req.body.values.selectManager,
                 createdBy:req.body.createdBy,
-                //CompanyId:req.body.values.selectCompany,
                 date:req.body.values.date,
                 bank:req.body.values.bank,
                 account_no:req.body.values.accountNo,
@@ -56,7 +54,8 @@ routes.post("/createEmployee", async(req, res) => {
         }
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 
@@ -76,7 +75,6 @@ routes.post("/editEmployee", async(req, res) => {
             department:req.body.values.selectDepart,
             manager:req.body.values.selectManager,
             updatedBy:req.body.updatedBy,
-            //CompanyId:req.body.values.selectCompany,
             represent:req.body.values.represent,
             date:req.body.values.date,
             bank:req.body.values.bank,
@@ -106,7 +104,8 @@ routes.get("/getEmployees", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 
@@ -119,6 +118,7 @@ routes.get("/getEmployeesIdAndName", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
+      console.error(error)
       res.json({status:'error', result:error});
     }
 });
@@ -131,7 +131,8 @@ routes.get("/getRepresentativeEmployees", async(req, res) => {
         res.json({status:'success', result:{Sr, Dr, Ar}});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 
@@ -141,7 +142,8 @@ routes.get("/getManagers", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 
@@ -151,7 +153,8 @@ routes.get("/createAccess", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 
@@ -162,7 +165,8 @@ routes.get('/allRiders', async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+        console.error(error)
+        res.json({status:'error', result:error});
     }
 });
 

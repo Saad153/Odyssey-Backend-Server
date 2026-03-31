@@ -4,7 +4,6 @@ const Sequelize = require('sequelize');
 const { Invoice, Charge_Head } = require("../../functions/Associations/incoiceAssociations");
 const { SE_Job, SE_Equipments } = require("../../functions/Associations/jobAssociations/seaExport");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
-// const { Vendors, Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
 const Op = Sequelize.Op;
 const url = 'parties';
@@ -13,11 +12,9 @@ const { Child_Account } = require('../../functions/Associations/accountAssociati
 
 routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
   try{
-    // console.log(req.body)
     console.log("Type:",req.headers.type)
     let result
     if(req.headers.type == 'client'){
-      console.log("Client Ran")
       result = await Clients.findAll({
         where: {
           nongl: '0'
@@ -25,16 +22,12 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
         attributes:['id', 'name', 'code'],
         include: {
           model: Client_Associations,
-          // where: {
-          //   CompanyId: req.headers.companyid
-          // },
           include:{
             model: Child_Account
           }
         }
       })
     }else if(req.headers.type == 'vendor'){
-      console.log("Vendor Ran")
       result = await Clients.findAll({
         where: {
           nongl: '0'
@@ -42,9 +35,6 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
         attributes:['id', 'name', 'code'],
         include: {
           model: Client_Associations,
-          // where: {
-          //   CompanyId: req.headers.companyid
-          // },
           include:{
             model: Child_Account
           }
@@ -54,7 +44,6 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
         }
       })
     }else if(req.headers.type == 'agent'){
-      console.log("Agent Ran")
       result = await Clients.findAll({
         where: {
           nongl: '0'
@@ -62,9 +51,6 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
         attributes:['id', 'name', 'code'],
         include: {
           model: Client_Associations,
-          // where: {
-          //   CompanyId: req.headers.companyid
-          // },
           include:{
             model: Child_Account
           }
@@ -74,15 +60,13 @@ routes.get(`/${url}/getPartiesbyType`, async (req, res) => {
         }
       })
     }
-    // console.log("Result Length: ",result.length)
     res.json({status:'success', result:result});
   }catch(e){
-    console.log(e)
+    console.error(e)
   }
 })
 
 routes.post(`/${url}/getBySearch`, async(req, res) => {
-  console.log(req.body)
   try {
     let result;
     if(req.body.type=="client"){
@@ -115,10 +99,6 @@ routes.post(`/${url}/getBySearch`, async(req, res) => {
             { name: Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('name')), 'LIKE', '%' + req.body.search.toLowerCase() + '%') }, 
           ],
           types: Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('types')), 'LIKE', '%agent%')
-          // [Op.or]: [
-          //   {types: Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('types')), 'LIKE', '%overseas agent%')},
-          //   {types: Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('types')), 'LIKE', '%commission agent%')}
-          // ]
         }
       })
     }else if("representative"){
@@ -132,12 +112,12 @@ routes.post(`/${url}/getBySearch`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
 
 routes.post(`/${url}/geInvoiceBalancing`, async(req, res) => {
-  console.log(req.body)
   let obj = {
     approved:'true',
     operation:req.body.filters.operation,
@@ -158,6 +138,7 @@ routes.post(`/${url}/geInvoiceBalancing`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
@@ -167,13 +148,11 @@ routes.post(`/${url}/getJobBalance`, async(req, res) => {
       let result;
       if(req.body.type=="client"){
         result = await SE_Job.findAll({
-        //where:{ClientId:req.body.id},
         attributes:['id', 'jobNo', 'subType', 'freightType', 'fd', 'vol', 'weight'],
         include:[
           {
             model:Invoice,
             where:{
-              //party_Id:req.body.id,
               payType:req.body.payType,
               party_Id:req.body.id,
               status:{[Op.ne]:'0'},
@@ -213,13 +192,13 @@ routes.post(`/${url}/getJobBalance`, async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
+      console.error(error);
       res.json({status: 'error', result: error});
     }
 });
 
 routes.post(`/${url}/getJobBalanceNew`, async(req, res) => {
   try {
-    console.log(req.body);
     let result;
     let obj = {
       party_Id:req.body.id,
@@ -279,6 +258,7 @@ routes.post(`/${url}/getJobBalanceNew`, async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });

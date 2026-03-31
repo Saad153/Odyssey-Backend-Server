@@ -3,9 +3,7 @@ const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../f
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
-// const { Vendor_Associations } = require("../../functions/Associations/vendorAssociations");
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
-// const { Vendors } = require("../../functions/Associations/vendorAssociations");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
 const { Accounts, Vessel, Transaction } = require("../../models");
@@ -17,10 +15,6 @@ const Op = Sequelize.Op;
 const { createHistory } = require('../../functions/history');
 
 const numCPUs = require('os').cpus().length;
-// Invoice statuses
-// 1 = unpaid
-// 2 = paid
-// 3 = not fully paid
 
 const chardHeadLogic = (currency) => {
   let result = { };
@@ -134,7 +128,6 @@ routes.post("/saveHeades", async(req, res) => {
 
       if(req.body.invoices[i].id!=null){
         for(let j = 0; j<req.body.invoices[i].charges.length;j++){
-          //await Invoice.update({req.body.invoices[i], where:{ id:invoices[i].id }});
           await Invoice.update({currency:req.body.invoices[i].currency},{where:{id:req.body.invoices[i].id}});
 
           if(req.body.invoices[i].charges[j].id!=null){
@@ -379,12 +372,10 @@ routes.get("/getAllInvoicesByPartyId", async (req, res) => {
         txMap.get(key).push(tx);
       }
 
-      // Attach using the same key name Sequelize would use for hasMany include
       for (const inv of invoices) {
         inv.setDataValue("Invoice_Transactions", txMap.get(inv.id) || []);
       }
     } else {
-      // Fallback: preserve correctness if FK name can't be detected
       await Promise.all(
         invoices.map(async (inv) => {
           const list = await Invoice_Transactions.findAll({
@@ -395,7 +386,6 @@ routes.get("/getAllInvoicesByPartyId", async (req, res) => {
       );
     }
 
-    // Same response shape as before
     return res.json({ status: "success", result: invoices });
   } catch (error) {
     console.error(error);
@@ -1022,7 +1012,6 @@ routes.post("/deleteOpeningInvoices", async(req, res) => {
   }
 })
 
-// To display invoices in Invoices page present in accounts tab
 routes.get("/getInvoices", async(req, res) =>{
   try {
     const result = await Invoice.findAll({
@@ -1100,10 +1089,6 @@ routes.post("/approve", async(req, res) => {
       }
     })
     
-    // for(let x of chargesHeads){
-    //   Inv.dataValues.currency=="PKR"?total += parseFloat(x.dataValues.local_amount):total += parseFloat(x.dataValues.net_amount)
-    //   defaultTotal += parseFloat(x.dataValues.local_amount)
-    // }
     let invPayType = Inv.dataValues.payType
     if(payble && receivable){
       if(payAmount>recAmount){
@@ -1138,10 +1123,6 @@ routes.post("/approve", async(req, res) => {
     job.dataValues.subType == "LCL"?incomeAccount = await Child_Account.findOne({where:{title:"LCL FREIGHT INCOME"}, include:[{model:Child_Account, as: 'parent'}]}):
     incomeAccount = await Child_Account.findOne({where:{title:"AIR FREIGHT INCOME"}, include:[{model:Child_Account, as: 'parent',}]})
     let account
-    // if(invoice.dataValues.partyType == "vendor"||invoice.dataValues.partyType == "agent"){
-    //   account = await Vendor_Associations.findOne({where:{VendorId:invoice.dataValues.party_Id}})
-    // }else{
-    // }
     account = await Client_Associations.findOne({where:{ClientId:invoice.dataValues.party_Id}})
 
     vouchers = {
@@ -1304,7 +1285,6 @@ routes.post("/approveHeads", async(req, res) => {
   }
 })
 
-// For Experimental Purposes
 routes.get('/getTaskInvoices', async(req, res) => {
   try {
     const result = await Invoice.findAll({ where: {status: "2" , approved: "1"}})
@@ -1315,22 +1295,21 @@ routes.get('/getTaskInvoices', async(req, res) => {
   }
 });
 
-// For Experimental Purposes
+
 routes.get('/getCPUS', async(req, res) => {
   try {
-    //const result = await Invoice.findAll({ where: {status: "2" , approved: "1"}})
     res.json({status: 'success', result: numCPUs});
   }
   catch (error) {
+    console.error(error)
     res.json({status: 'error', result: error});
   }
 });
 
-// For Data Backup
+
 routes.get('/testGetLastInvoice', async(req, res) => {
   try {
     const lastJI = await Invoice.findOne({ 
-      //limit:1,
       where:{type:'Job Invoice'},
       order: [['invoice_Id', 'DESC']],
       attributes:["invoice_Id"]
@@ -1342,7 +1321,6 @@ routes.get('/testGetLastInvoice', async(req, res) => {
   }
 });
 
-// displays job data according to Invoice balance Page
 routes.get("/jobBalancing", async (req, res) => {
   try {
     let account
@@ -1361,12 +1339,10 @@ routes.get("/jobBalancing", async (req, res) => {
       })
     }
     let invoiceObj = {
-      // below condition sets the date range
       createdAt: {
         [Op.gte]: moment(req.headers.from).toDate(),
         [Op.lte]: moment(req.headers.to).add(1, 'days').toDate(),
       },
-      // below condition make sures to display only Job-Invoice & Job-Bill
       [Op.and]: [
         { type: { [Op.ne]: "Agent Invoice" } },
         { type: { [Op.ne]: "Old Agent Invoice" } },
@@ -1374,13 +1350,10 @@ routes.get("/jobBalancing", async (req, res) => {
         { type: { [Op.ne]: "Old Agent Bill" } },
       ]
     };
-    // below condition sets if both payble & receivable invoices/bills are being called
     if(req.headers.paytype!="All"){
       invoiceObj.payType=req.headers.paytype
     }
-    // party wise invoice/bill
     account?invoiceObj.party_Id=account.ChildAccountId.toString():null
-    // Company wise invoice/bill
     if(req.headers.company=='4'){
       invoiceObj = {
         ...invoiceObj,
@@ -1389,12 +1362,8 @@ routes.get("/jobBalancing", async (req, res) => {
     } else {
       req.headers.company?invoiceObj.companyId=req.headers.company:null;
     }
-    // Currency wise invoice/bill
     req.headers.currency?invoiceObj.currency=req.headers.currency:null;
-    // Job Type/operation wise invoice/bill
     req.headers.jobtypes?.length>0?invoiceObj.operation=req.headers.jobtypes.split(","):null;
-
-    // To include the Job, Bl & Equipments data in the invoices
     let includeObj = [
       {
         model: Charge_Head,
@@ -1429,13 +1398,10 @@ routes.get("/jobBalancing", async (req, res) => {
           attributes:['name']
         },
       ],
-      // attributes:['id', 'weight', 'vol', 'fd', 'freightType', 'jobNo', 'operation', 'subType', 'jobDate', 'shipDate', 'arrivalDate', 'container', 'createdAt', 'fileNo', 'customerRef'],
-      
     }]
 
     invoiceObj.approved = '1'
 
-    // overseas agent wise invoice/bill
     req.headers.overseasagent?includeObj.where = {overseasAgentId:req.headers.overseasagent}:null;
     const result = await Invoice.findAll({
       where:invoiceObj,
@@ -1536,6 +1502,7 @@ routes.get("/invoiceTest", async (req, res) => {
 
     await res.json({ status: "success", result: result });
   } catch (error) {
+    console.error(error)
     res.json({ status: "error", result: error });
   }
 });
@@ -1595,17 +1562,14 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
       });
       
       if (voucher) {
-        // Append the new result.id to the existing invoices string
         const updatedInvoices = voucher.invoices ? `${voucher.invoices},${result.id}` : result.id;
-      
-        // Update the record with the new invoices string
         await Vouchers.update(
           {
             invoices: updatedInvoices,
           },
           {
             where: {
-              id: voucher.id, // Update only the specific record
+              id: voucher.id, 
             }
           }
         );

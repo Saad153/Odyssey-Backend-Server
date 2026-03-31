@@ -28,10 +28,11 @@ routes.get(`/${url}/get`, async(req, res) => {
           ],
         }
       ],
-    }).catch((x)=>console.log(x));
+    }).catch((x)=>console.error(x));
     res.json({status:'success', result:result});
   }
   catch (error) {
+    console.error(error);
     res.json({status: 'error', result: error});
   }
 });
