@@ -889,23 +889,42 @@ routes.post("/makeTransaction", async(req, res) => {
     if(!req.body.edit){
       console.log(req.body.transactionMode, req.body.payType)
       let temp
-      if(req.body.transactionMode=="Cash"){
-        if(req.body.payType=="Recievable"){
-          temp = "CRV"
-        }else{
-          temp = "CPV"
+      if(req.body.partyType != 'agent' ){
+        if(req.body.transactionMode=="Cash"){
+          if(req.body.payType=="Recievable"){
+            temp = "CRV"
+          }else{
+            temp = "CPV"
+          }
+        }else if(req.body.transactionMode=="Bank"){
+          if(req.body.payType=="Recievable"){
+            temp = "BRV"
+          }else{
+            temp = "BPV"
+          }
+        }else if(req.body.transactionMode=="Adjust"){
+          if(req.body.payType=="Recievable"){
+            temp = "ADJ-R"
+          }else{
+            temp = "ADJ-P"
+          }
         }
-      }else if(req.body.transactionMode=="Bank"){
-        if(req.body.payType=="Recievable"){
-          temp = "BRV"
-        }else{
-          temp = "BPV"
+      }else{
+        if(req.body.transactionMode=="Cash"){
+          temp = 'C'
+        }else if(req.body.transactionMode=="Bank"){
+          temp = 'B'
+        }else if(req.body.transactionMode=="Adjust"){
+          temp = 'ADJ-'
         }
-      }else if(req.body.transactionMode=="Adjust"){
-        if(req.body.payType=="Recievable"){
-          temp = "ADJ-R"
-        }else{
-          temp = "ADJ-P"
+        req.body.transactions.forEach(x=>{
+          if(x.accountType=="payAccount"){
+            x.credit != 0? temp += "P" : temp += "R"
+          }
+          
+        })
+        if(req.body.transactionMode!="Adjust"){
+          temp += "V"
         }
       }
       let v = {
