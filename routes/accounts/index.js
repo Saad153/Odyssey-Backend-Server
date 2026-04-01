@@ -959,22 +959,74 @@ routes.get("/getLedger", async(req, res) => {
   }
 });
 
-routes.get("/getLedgerClosingBalance", async(req, res) => {
+// routes.get("/getLedgerClosingBalance", async(req, res) => {
+//   try {
+//     const result = await Voucher_Heads.findAll({
+//       raw:true,
+//       where:{
+//         ChildAccountId:req.headers.id
+//       },
+//       attributes:['amount', 'type', 'defaultAmount'],
+//       // include:[{
+//       //   model:Vouchers,
+//       //   attributes:['voucher_Id', 'id', 'type', 'currency', 'exRate', 'vType'],
+//       // }],
+//     })
+//     res.json({status:'success', result:result});
+//   } catch (error) {
+//     res.json({status:'error', result:error});
+//   }
+// });
+
+routes.get("/getLedgerClosingBalance", async (req, res) => {
   try {
-    const result = await Voucher_Heads.findAll({
-      raw:true,
-      where:{
-        ChildAccountId:req.headers.id
+    const { id } = req.headers;
+
+    if (!id) {
+      return res.status(400).json({
+        status: "error",
+        message: "ChildAccountId is required",
+      });
+    }
+
+    const ledger = await Voucher_Heads.findAll({
+      raw: true,
+      where: {
+        ChildAccountId: Number(id),
       },
-      attributes:['amount', 'type', 'defaultAmount'],
-      include:[{
-        model:Vouchers,
-        attributes:['voucher_Id', 'id', 'type', 'currency', 'exRate', 'vType'],
-      }],
-    })
-    res.json({status:'success', result:result});
+      include: [
+        {
+          model: Vouchers,
+          attributes: ["id", "vType"],
+          where: { CompanyId: req.headers.company },
+        }
+      ],
+      attributes: ["type", "defaultAmount"],
+    });
+
+    let closingBalance = 0;
+
+    for (const entry of ledger) {
+      const amount = parseFloat(entry.defaultAmount || 0);
+
+      if (entry.type === "debit") {
+        closingBalance += amount;
+      } else if (entry.type === "credit") {
+        closingBalance -= amount;
+      }
+    }
+
+    return res.json({
+      status: "success",
+      closingBalance,
+    });
+
   } catch (error) {
-    res.json({status:'error', result:error});
+    console.error("Ledger Closing Balance Error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+    });
   }
 });
 
