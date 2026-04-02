@@ -610,147 +610,405 @@ routes.get("/getJobsWithoutBl", async(req, res) => {
   }
 });
 
-routes.post("/createBl", async(req, res) => {
+// routes.post("/createBl", async(req, res) => {
+//   try {
+//     let data = req.body;
+//     delete data.id;
+//     const check = await Bl.findOne({
+//       where:{ hbl: data.hbl },
+//       attributes:["mbl", "hbl", "SEJobId"] 
+//     });
+//     if(data.operation=="AI" || data.operation=="AE"){
+
+//     }
+//     if (!check){
+//       let obj = {
+//         pkgUnit:data.unit, 
+//         pcs:data.pkgs, 
+//         weightUnit:data.wtUnit, 
+//         vol:data.cbm, 
+//         shpVol:data.cbm,
+//         weight:data.gross,
+//         cwtClient:data.chargableWt
+//       }
+//       if(data.operation=="SI" || data.operation=="AI" || data.operation=="SE"){
+
+//         await SE_Job.update({
+//           ...obj
+//         }, {where:{id:data.SEJobId}});
+//       }
+//       const result = await Bl.create({...data,
+//       }).catch((x)=>console.log(x))
+//       // Creating Items for AE
+//       if(data.Item_Details.length>0){
+//         let tempItems = [];
+//         data.Item_Details.forEach((x)=>{
+//           x.id==null?delete x.id:null;
+//           tempItems.push({...x, BlId:result.id})
+//         })
+//         await Item_Details.bulkCreate(tempItems)
+//       }
+//       await data.Container_Infos.forEach((x, i)=>{
+//         data.Container_Infos[i] = {...x, BlId:result.id}
+//       })
+//       await Container_Info.bulkCreate(data.Container_Infos).catch((x)=>console.error(x))
+//       if(data.Dimensions.length>0){
+//         data.Dimensions.forEach((x, i)=>{
+//           x.id==null?delete x.id:null;
+//           data.Dimensions[i] = {...x, BlId:result.id}
+//         })
+//         await Dimensions.bulkCreate(data.Dimensions).catch((x)=>console.error(x))
+//       }
+//       const res1 = await SE_Job.findOne({
+//         where:{id: data.SEJobId}
+//       })
+//       createHistory(req.body.employeeId, 'BL', 'Create', res1.jobNo);
+//       res.json({status:'success', result:result.id });
+//     }else {
+//       const job = await SE_Job.findOne({
+//         where: {
+//           id: check.dataValues.SEJobId
+//         },
+//         attributes:["jobNo"]
+//       })
+//       // createHistory(req.body.employeeId, 'BL', 'Create', job.jobNo);
+//       res.json({status:'warning', result:`Mbl or Hbl Already Exists in Job: ${job.dataValues.jobNo}` });
+//     }
+//   }
+//   catch (error) {
+//     console.error(error)
+//     res.json({status:'error', result:error});
+//   }
+// });
+
+routes.post("/createBl", async (req, res) => {
   try {
     let data = req.body;
     delete data.id;
-    const check = await Bl.findOne({
-      where:{ mbl: data.mbl },
-      attributes:["mbl", "hbl", "SEJobId"] 
-    });
-    if (!check){
-      let obj = {
-        pkgUnit:data.unit, 
-        pcs:data.pkgs, 
-        weightUnit:data.wtUnit, 
-        vol:data.cbm, 
-        shpVol:data.cbm,
-        weight:data.gross,
-        cwtClient:data.chargableWt
-      }
-      if(data.operation=="SI" || data.operation=="AI" || data.operation=="SE"){
 
-        await SE_Job.update({
-          ...obj
-        }, {where:{id:data.SEJobId}});
-      }
-      const result = await Bl.create({...data,
-      }).catch((x)=>console.log(x))
-      // Creating Items for AE
-      if(data.Item_Details.length>0){
-        let tempItems = [];
-        data.Item_Details.forEach((x)=>{
-          x.id==null?delete x.id:null;
-          tempItems.push({...x, BlId:result.id})
-        })
-        await Item_Details.bulkCreate(tempItems)
-      }
-      await data.Container_Infos.forEach((x, i)=>{
-        data.Container_Infos[i] = {...x, BlId:result.id}
-      })
-      await Container_Info.bulkCreate(data.Container_Infos).catch((x)=>console.error(x))
-      if(data.Dimensions.length>0){
-        data.Dimensions.forEach((x, i)=>{
-          x.id==null?delete x.id:null;
-          data.Dimensions[i] = {...x, BlId:result.id}
-        })
-        await Dimensions.bulkCreate(data.Dimensions).catch((x)=>console.error(x))
-      }
-      const res1 = await SE_Job.findOne({
-        where:{id: data.SEJobId}
-      })
-      createHistory(req.body.employeeId, 'BL', 'Create', res1.jobNo);
-      res.json({status:'success', result:result.id });
-    }else {
+    /**
+     * 🔴 Rule 1: HBL must NEVER be duplicated
+     */
+    const hblCheck = await Bl.findOne({
+      where: { hbl: data.hbl },
+      attributes: ["mbl", "hbl", "SEJobId"],
+    });
+
+    if (hblCheck) {
       const job = await SE_Job.findOne({
-        where: {
-          id: check.dataValues.SEJobId
-        },
-        attributes:["jobNo"]
-      })
-      createHistory(req.body.employeeId, 'BL', 'Create', job.jobNo);
-      res.json({status:'warning', result:`Mbl or Hbl Already Exists in Job: ${job.dataValues.jobNo}` });
+        where: { id: hblCheck.SEJobId },
+        attributes: ["jobNo"],
+      });
+
+      return res.json({
+        status: "warning",
+        result: `HBL Already Exists in Job: ${job.jobNo}`,
+      });
     }
-  }
-  catch (error) {
-    console.error(error)
-    res.json({status:'error', result:error});
+
+    /**
+     * 🔴 Rule 2: MBL must NOT be duplicated ONLY for AI / AE
+     */
+    if (data.operation === "AI" || data.operation === "AE") {
+      const mblCheck = await Bl.findOne({
+        where: { mbl: data.mbl },
+        attributes: ["mbl", "SEJobId"],
+      });
+
+      if (mblCheck) {
+        const job = await SE_Job.findOne({
+          where: { id: mblCheck.SEJobId },
+          attributes: ["jobNo"],
+        });
+
+        return res.json({
+          status: "warning",
+          result: `MBL Already Exists in Job: ${job.jobNo}`,
+        });
+      }
+    }
+
+    /**
+     * ✅ Original logic (UNCHANGED)
+     */
+    let obj = {
+      pkgUnit: data.unit,
+      pcs: data.pkgs,
+      weightUnit: data.wtUnit,
+      vol: data.cbm,
+      shpVol: data.cbm,
+      weight: data.gross,
+      cwtClient: data.chargableWt,
+    };
+
+    if (data.operation === "SI" || data.operation === "AI" || data.operation === "SE") {
+      await SE_Job.update(
+        { ...obj },
+        { where: { id: data.SEJobId } }
+      );
+    }
+
+    const result = await Bl.create({ ...data });
+
+    // Creating Items for AE
+    if (data.Item_Details.length > 0) {
+      let tempItems = [];
+      data.Item_Details.forEach((x) => {
+        x.id == null ? delete x.id : null;
+        tempItems.push({ ...x, BlId: result.id });
+      });
+      await Item_Details.bulkCreate(tempItems);
+    }
+
+    await data.Container_Infos.forEach((x, i) => {
+      data.Container_Infos[i] = { ...x, BlId: result.id };
+    });
+    await Container_Info.bulkCreate(data.Container_Infos);
+
+    if (data.Dimensions.length > 0) {
+      data.Dimensions.forEach((x, i) => {
+        x.id == null ? delete x.id : null;
+        data.Dimensions[i] = { ...x, BlId: result.id };
+      });
+      await Dimensions.bulkCreate(data.Dimensions);
+    }
+
+    const res1 = await SE_Job.findOne({
+      where: { id: data.SEJobId },
+    });
+
+    createHistory(req.body.employeeId, "BL", "Create", res1.jobNo);
+
+    res.json({
+      status: "success",
+      result: result.id,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.json({ status: "error", result: error });
   }
 });
 
-routes.post("/editBl", async(req, res) => {
+// routes.post("/editBl", async(req, res) => {
+//   try {
+//     let data = req.body;
+//     let obj = {
+//       pkgUnit:data.unit, 
+//       pcs:data.pkgs, 
+//       weightUnit:data.wtUnit, 
+//       vol:data.cbm, 
+//       shpVol:data.cbm,
+//       weight:data.gross,
+//       cwtClient:data.chargableWt
+//     };
+//     if(data.operation=="SI" || data.operation=="AI" || data.operation=="SE"){
+//       await SE_Job.update({
+//         ...obj
+//       }, {where:{id:data.SEJobId}});
+//     };
+//     await Bl.update(data, {where:{id:data.id}});
+//     data.Container_Infos.forEach((x, i)=>{
+//       data.Container_Infos[i] = {
+//         ...x, BlId:data.id, 
+//         pkgs:x.pkgs.toString(),
+//         gross:x.gross.toString(),
+//         net:x.net.toString(),
+//         tare:x.tare.toString(),
+//         cbm:x.cbm?.toString(),
+//       }
+//     });
+//     const result = await Container_Info.bulkCreate(data.Container_Infos,{
+//       updateOnDuplicate: [
+//         "pkgs", "no", "seal", "size", "rategroup", "gross", "net", "tare", "wtUnit", "cbm", "pkgs", "unit", "temp", "loadType", "remarks", "detention",  "demurge", "plugin", "dg", "number", "date", "top", "right", "left", "front", "back"
+//       ],
+//     });
+//     // Creating Items for AE
+//     if(data.Item_Details.length>0){
+//       let tempItems = [];
+//       data.Item_Details.forEach((x)=>{
+//         x.id==null?delete x.id:null;
+//         tempItems.push({...x, BlId:req.body.id})
+//       })
+//       await Item_Details.bulkCreate(tempItems,{
+//         updateOnDuplicate: [
+//           "noOfPcs", "unit", "grossWt", "kh_lb", "r_class", "itemNo", "chargableWt", "rate_charge", "total", "lineWeight"
+//         ],
+//       })
+//     };
+//     if(data.Dimensions.length>0){
+//       let tempItems = [];
+//       data.Dimensions.forEach((x)=>{
+//         x.id==null?delete x.id:null;
+//         tempItems.push({...x, BlId:req.body.id})
+//       })
+//       await Dimensions.bulkCreate(tempItems,{
+//         updateOnDuplicate: [
+//           "length", "width", "height", "qty", "vol", "weight"
+//         ],
+//       })
+//     };
+//     await Stamps.destroy({ where:{id:data.deleteArr} });
+//     await Container_Info.destroy({ where:{id:req.body.deletingContinersList} });
+//     await Item_Details.destroy({ where:{id:req.body.deletingItemList} });
+//     await Dimensions.destroy({ where:{id:req.body.deletingDimensionsList} });
+//     await data.stamps?.map((x) => Stamps.upsert({...x, BlId:req.body.id}));
+//     const res1 = await SE_Job.findOne({
+//       where:{id:data.SEJobId}
+//     })
+//     createHistory(req.body.employeeId, 'BL', 'Edit', res1.jobNo);
+//     res.json({status:'success', result: result});   
+//   } 
+//   catch (error) {
+//     res.json({status:'error', result:error});  
+//   } 
+// }); 
+
+routes.post("/editBl", async (req, res) => {
   try {
     let data = req.body;
-    let obj = {
-      pkgUnit:data.unit, 
-      pcs:data.pkgs, 
-      weightUnit:data.wtUnit, 
-      vol:data.cbm, 
-      shpVol:data.cbm,
-      weight:data.gross,
-      cwtClient:data.chargableWt
-    };
-    if(data.operation=="SI" || data.operation=="AI" || data.operation=="SE"){
-      await SE_Job.update({
-        ...obj
-      }, {where:{id:data.SEJobId}});
-    };
-    await Bl.update(data, {where:{id:data.id}});
-    data.Container_Infos.forEach((x, i)=>{
-      data.Container_Infos[i] = {
-        ...x, BlId:data.id, 
-        pkgs:x.pkgs.toString(),
-        gross:x.gross.toString(),
-        net:x.net.toString(),
-        tare:x.tare.toString(),
-        cbm:x.cbm?.toString(),
-      }
+
+    /**
+     * 🔴 Rule 1: HBL must NEVER be duplicated (ignore current BL)
+     */
+    const hblCheck = await Bl.findOne({
+      where: {
+        hbl: data.hbl,
+        id: { [Op.ne]: data.id },
+      },
+      attributes: ["SEJobId"],
     });
-    const result = await Container_Info.bulkCreate(data.Container_Infos,{
+
+    if (hblCheck) {
+      const job = await SE_Job.findOne({
+        where: { id: hblCheck.SEJobId },
+        attributes: ["jobNo"],
+      });
+
+      return res.json({
+        status: "warning",
+        result: `HBL Already Exists in Job: ${job.jobNo}`,
+      });
+    }
+
+    /**
+     * 🔴 Rule 2: MBL must NOT be duplicated ONLY for AI / AE (ignore current BL)
+     */
+    if (data.operation === "AI" || data.operation === "AE") {
+      const mblCheck = await Bl.findOne({
+        where: {
+          mbl: data.mbl,
+          id: { [Op.ne]: data.id },
+        },
+        attributes: ["SEJobId"],
+      });
+
+      if (mblCheck) {
+        const job = await SE_Job.findOne({
+          where: { id: mblCheck.SEJobId },
+          attributes: ["jobNo"],
+        });
+
+        return res.json({
+          status: "warning",
+          result: `MBL Already Exists in Job: ${job.jobNo}`,
+        });
+      }
+    }
+
+    /**
+     * ✅ ORIGINAL CODE (UNCHANGED)
+     */
+    let obj = {
+      pkgUnit: data.unit,
+      pcs: data.pkgs,
+      weightUnit: data.wtUnit,
+      vol: data.cbm,
+      shpVol: data.cbm,
+      weight: data.gross,
+      cwtClient: data.chargableWt,
+    };
+
+    if (data.operation === "SI" || data.operation === "AI" || data.operation === "SE") {
+      await SE_Job.update(
+        { ...obj },
+        { where: { id: data.SEJobId } }
+      );
+    }
+
+    await Bl.update(data, { where: { id: data.id } });
+
+    data.Container_Infos.forEach((x, i) => {
+      data.Container_Infos[i] = {
+        ...x,
+        BlId: data.id,
+        pkgs: x.pkgs.toString(),
+        gross: x.gross.toString(),
+        net: x.net.toString(),
+        tare: x.tare.toString(),
+        cbm: x.cbm?.toString(),
+      };
+    });
+
+    const result = await Container_Info.bulkCreate(data.Container_Infos, {
       updateOnDuplicate: [
-        "pkgs", "no", "seal", "size", "rategroup", "gross", "net", "tare", "wtUnit", "cbm", "pkgs", "unit", "temp", "loadType", "remarks", "detention",  "demurge", "plugin", "dg", "number", "date", "top", "right", "left", "front", "back"
+        "pkgs", "no", "seal", "size", "rategroup", "gross", "net", "tare",
+        "wtUnit", "cbm", "unit", "temp", "loadType", "remarks",
+        "detention", "demurge", "plugin", "dg", "number", "date",
+        "top", "right", "left", "front", "back"
       ],
     });
-    // Creating Items for AE
-    if(data.Item_Details.length>0){
+
+    if (data.Item_Details.length > 0) {
       let tempItems = [];
-      data.Item_Details.forEach((x)=>{
-        x.id==null?delete x.id:null;
-        tempItems.push({...x, BlId:req.body.id})
-      })
-      await Item_Details.bulkCreate(tempItems,{
+      data.Item_Details.forEach((x) => {
+        x.id == null ? delete x.id : null;
+        tempItems.push({ ...x, BlId: data.id });
+      });
+
+      await Item_Details.bulkCreate(tempItems, {
         updateOnDuplicate: [
-          "noOfPcs", "unit", "grossWt", "kh_lb", "r_class", "itemNo", "chargableWt", "rate_charge", "total", "lineWeight"
+          "noOfPcs", "unit", "grossWt", "kh_lb", "r_class", "itemNo",
+          "chargableWt", "rate_charge", "total", "lineWeight"
         ],
-      })
-    };
-    if(data.Dimensions.length>0){
+      });
+    }
+
+    if (data.Dimensions.length > 0) {
       let tempItems = [];
-      data.Dimensions.forEach((x)=>{
-        x.id==null?delete x.id:null;
-        tempItems.push({...x, BlId:req.body.id})
-      })
-      await Dimensions.bulkCreate(tempItems,{
+      data.Dimensions.forEach((x) => {
+        x.id == null ? delete x.id : null;
+        tempItems.push({ ...x, BlId: data.id });
+      });
+
+      await Dimensions.bulkCreate(tempItems, {
         updateOnDuplicate: [
           "length", "width", "height", "qty", "vol", "weight"
         ],
-      })
-    };
-    await Stamps.destroy({ where:{id:data.deleteArr} });
-    await Container_Info.destroy({ where:{id:req.body.deletingContinersList} });
-    await Item_Details.destroy({ where:{id:req.body.deletingItemList} });
-    await Dimensions.destroy({ where:{id:req.body.deletingDimensionsList} });
-    await data.stamps?.map((x) => Stamps.upsert({...x, BlId:req.body.id}));
+      });
+    }
+
+    await Stamps.destroy({ where: { id: data.deleteArr } });
+    await Container_Info.destroy({ where: { id: data.deletingContinersList } });
+    await Item_Details.destroy({ where: { id: data.deletingItemList } });
+    await Dimensions.destroy({ where: { id: data.deletingDimensionsList } });
+
+    await data.stamps?.map((x) =>
+      Stamps.upsert({ ...x, BlId: data.id })
+    );
+
     const res1 = await SE_Job.findOne({
-      where:{id:data.SEJobId}
-    })
-    createHistory(req.body.employeeId, 'BL', 'Edit', res1.jobNo);
-    res.json({status:'success', result: result});   
-  } 
-  catch (error) {
-    res.json({status:'error', result:error});  
-  } 
-}); 
+      where: { id: data.SEJobId },
+    });
+
+    createHistory(req.body.employeeId, "BL", "Edit", res1.jobNo);
+
+    res.json({ status: "success", result });
+
+  } catch (error) {
+    res.json({ status: "error", result: error });
+  }
+});
 
 routes.post("/findJobByNo", async(req, res) => {
   try {
