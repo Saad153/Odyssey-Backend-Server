@@ -820,12 +820,16 @@ routes.post("/makeInvoiceNew", async(req, res) => {
       }
       if(x.invoiceType=="Agent Bill"){
         if(Object.keys(createdInvoice).length==0){
-          createdInvoice = await createInvoices(lastAB, "AB", "Agent Bill", req.body.companyId,req.body.type, x)
+          createdInvoice = await createInvoices(lastAB, "AB", "Agent Bill", req.body.companyId , req.body.type , x)
         }
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
     };
-    const newInv = await Invoice.create(createdInvoice);
+    const newInv = await Invoice.create({
+      ...createdInvoice,
+        createdAt: moment(req.body.shipDate).toDate(),
+        updatedAt: moment(req.body.shipDate).toDate(),
+    }, { silent: true });
     let chargesIds = []
     for(let x of charges){
       let chargeHeads = await Charge_Head.upsert({ ...x, InvoiceId:newInv.id, invoice_id: newInv.invoice_No });
