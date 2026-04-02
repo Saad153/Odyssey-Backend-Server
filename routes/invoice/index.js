@@ -827,8 +827,8 @@ routes.post("/makeInvoiceNew", async(req, res) => {
     };
     const newInv = await Invoice.create({
       ...createdInvoice,
-        createdAt: moment(req.body.shipDate).toDate(),
-        updatedAt: moment(req.body.shipDate).toDate(),
+        createdAt: req.body.departureDate ? moment(req.body.departureDate).toDate() : moment(req.body.shipDate).toDate(),departureDate,
+        updatedAt: req.body.departureDate ? moment(req.body.departureDate).toDate() : moment(req.body.shipDate).toDate(),departureDate,
     }, { silent: true });
     let chargesIds = []
     for(let x of charges){
