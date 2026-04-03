@@ -1911,5 +1911,149 @@ routes.get("/ageingSummary", async (req, res) => {
   }
 });
 
+routes.get("/jobPnLSummary", async (req, res) => {
+  try{
+    const query = req.query || {};
+    const from = moment(query.from, 'DD-MM-YYYY').startOf("day");
+    const to   = moment(query.to, 'DD-MM-YYYY').endOf("day");
+    
+    if (!from.isValid() || !to.isValid()) {
+      return res.status(400).json({ status: "error", message: "Invalid date format. Use DD-MM-YYYY" });
+    }
+
+    // Determine which SE_Job fields to include (vol, weight, shpVol, teu)
+    const includeFields = query.includeFields ? query.includeFields.split(",").map(f => f.trim()) : [];
+    const validSEJobFields = ['vol', 'weight', 'shpVol', 'teu'];
+    const selectedFields = includeFields.filter(f => validSEJobFields.includes(f));
+    const seJobAttributes = ['id', 'jobNo', 'subType', 'ClientId', ...selectedFields];
+
+    // Build where clause for SE_Job with company filter
+    const jobWhereClause = {
+      createdAt: {
+        [Op.gte]: from.toDate(),
+        [Op.lte]: to.toDate(),
+      }
+    };
+
+    // Add company filter if provided
+    const company = query.company;
+    if (company && company !== '4') {
+      jobWhereClause.companyId = company;
+    } else if (company === '4') {
+      jobWhereClause.companyId = { [Op.in]: ['1', '3'] };
+    }
+
+    // Fetch all jobs within date range and company filter with their invoices
+    const jobs = await SE_Job.findAll({
+      where: jobWhereClause,
+      attributes: seJobAttributes,
+      include:[
+        { 
+          model: Clients,
+          attributes: ['id', 'name'],
+          required: false
+        },
+        { 
+          model: Voyage, 
+          attributes:['voyage', 'importArrivalDate', 'exportSailDate'], 
+          required: false 
+        },
+        {
+          model: Invoice,
+          attributes:['id','invoice_No', 'payType', 'currency', 'ex_rate', 'total', 'approved', 'createdAt'],
+          required: false,
+          where: { approved: "1" }
+        }
+      ]
+    });
+
+    if (!jobs || jobs.length === 0) {
+      return res.json({ status: "success", result: [] });
+    }
+
+    // Group by ClientId and calculate revenue, expense, P&L
+    const clientMap = new Map();
+
+    for (const job of jobs) {
+      const clientId = job.ClientId;
+      
+      if (!clientId) continue; // Skip jobs without a client
+
+      // Initialize client entry if not exists
+      if (!clientMap.has(clientId)) {
+        clientMap.set(clientId, {
+          clientId: clientId,
+          clientName: job.Client?.name || "(Unknown)",
+          totalRevenue: 0,
+          totalExpense: 0,
+          jobCount: 0
+        });
+        
+        // Initialize field totals if selected
+        selectedFields.forEach(field => {
+          clientMap.get(clientId)[`total${field.charAt(0).toUpperCase()}${field.slice(1)}`] = 0;
+        });
+      }
+
+      const client = clientMap.get(clientId);
+      client.jobCount += 1;
+      
+      // Add job field values to totals
+      selectedFields.forEach(field => {
+        const totalKey = `total${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+        if (job[field] !== undefined) {
+          client[totalKey] += parseFloat(job[field]) || 0;
+        }
+      });
+
+      // Skip if no invoices for this job
+      if (!job.Invoices || job.Invoices.length === 0) continue;
+
+      // Process invoices for this job
+      for (const invoice of job.Invoices) {
+        // Calculate amount in base currency
+        const baseAmount = invoice.currency === "PKR" 
+          ? parseFloat(invoice.total) || 0
+          : (parseFloat(invoice.total) || 0) * (parseFloat(invoice.ex_rate) || 1);
+
+        // Accumulate revenue and expense by invoice payType
+        if (invoice.payType === 'Recievable') {
+          client.totalRevenue += baseAmount;
+        } else if (invoice.payType === 'Payble') {
+          client.totalExpense += baseAmount;
+        }
+      }
+    }
+
+    // Format and return client-wise summary with P&L
+    const result = Array.from(clientMap.values()).map(client => {
+      const summary = {
+        clientId: client.clientId,
+        clientName: client.clientName,
+        totalRevenue: parseFloat(client.totalRevenue.toFixed(2)),
+        totalExpense: parseFloat(client.totalExpense.toFixed(2)),
+        totalProfitLoss: parseFloat((client.totalRevenue - client.totalExpense).toFixed(2)),
+        jobCount: client.jobCount
+      };
+
+      // Add selected field totals
+      selectedFields.forEach(field => {
+        const totalKey = `total${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+        if (client[totalKey] !== undefined) {
+          summary[totalKey] = parseFloat(client[totalKey].toFixed(2));
+        }
+      });
+
+      return summary;
+    }).sort((a, b) => b.totalProfitLoss - a.totalProfitLoss); // Sort by P&L descending
+
+    return res.json({ status: "success", result });
+
+  }catch(error){
+    console.error(error);
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
+  }
+});
+
 
 module.exports = routes;        
