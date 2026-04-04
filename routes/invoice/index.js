@@ -1914,11 +1914,12 @@ routes.get("/ageingSummary", async (req, res) => {
 routes.get("/jobPnLSummary", async (req, res) => {
   try{
     const query = req.query || {};
-    const from = moment(query.from, 'DD-MM-YYYY').startOf("day");
-    const to   = moment(query.to, 'DD-MM-YYYY').endOf("day");
+    const from = moment(query.from).startOf("day");
+    const to   = moment(query.to).endOf("day");
     
     if (!from.isValid() || !to.isValid()) {
-      return res.status(400).json({ status: "error", message: "Invalid date format. Use DD-MM-YYYY" });
+      console.error("Invalid date format for jobPnLSummary:", { from: query.from, to: query.to });
+      return res.status(400).json({ status: "error", message: "Invalid date format" });
     }
 
     // Determine which SE_Job fields to include (vol, weight, shpVol, teu)
@@ -1959,10 +1960,17 @@ routes.get("/jobPnLSummary", async (req, res) => {
           required: false 
         },
         {
-          model: Invoice,
-          attributes:['id','invoice_No', 'payType', 'currency', 'ex_rate', 'total', 'approved', 'createdAt'],
+          model: Charge_Head,
+          attributes: ['type', 'local_amount'],
           required: false,
-          where: { approved: "1" }
+          include: [
+            {
+              model: Invoice,
+              attributes:['id','invoice_No', 'payType', 'currency', 'ex_rate', 'total', 'approved', 'createdAt'],
+              required: false,
+              where: { approved: "1" }
+            }
+          ]
         }
       ]
     });
@@ -1998,7 +2006,7 @@ routes.get("/jobPnLSummary", async (req, res) => {
       const client = clientMap.get(clientId);
       client.jobCount += 1;
       
-      // Add job field values to totals
+      // Add job field values to totals if selected
       selectedFields.forEach(field => {
         const totalKey = `total${field.charAt(0).toUpperCase()}${field.slice(1)}`;
         if (job[field] !== undefined) {
@@ -2006,20 +2014,21 @@ routes.get("/jobPnLSummary", async (req, res) => {
         }
       });
 
-      // Skip if no invoices for this job
-      if (!job.Invoices || job.Invoices.length === 0) continue;
+      // Skip if no charge heads for this job
+      if (!job.Charge_Heads || job.Charge_Heads.length === 0) continue;
 
-      // Process invoices for this job
-      for (const invoice of job.Invoices) {
-        // Calculate amount in base currency
-        const baseAmount = invoice.currency === "PKR" 
-          ? parseFloat(invoice.total) || 0
-          : (parseFloat(invoice.total) || 0) * (parseFloat(invoice.ex_rate) || 1);
+      // Process charge heads for this job
+      for (const charge of job.Charge_Heads) {
+        // Skip if no associated invoice or not approved
+        if (!charge.Invoice || charge.Invoice.approved !== "1") continue;
 
-        // Accumulate revenue and expense by invoice payType
-        if (invoice.payType === 'Recievable') {
+        // Use local_amount as it's already in base currency
+        const baseAmount = parseFloat(charge.local_amount) || 0;
+
+        // Accumulate revenue and expense by charge type
+        if (charge.type === 'Recievable') {
           client.totalRevenue += baseAmount;
-        } else if (invoice.payType === 'Payble') {
+        } else if (charge.type === 'Payble') {
           client.totalExpense += baseAmount;
         }
       }
@@ -2033,6 +2042,7 @@ routes.get("/jobPnLSummary", async (req, res) => {
         totalRevenue: parseFloat(client.totalRevenue.toFixed(2)),
         totalExpense: parseFloat(client.totalExpense.toFixed(2)),
         totalProfitLoss: parseFloat((client.totalRevenue - client.totalExpense).toFixed(2)),
+        GP: parseFloat(parseFloat((client.totalRevenue - client.totalExpense).toFixed(2)) / (client.totalRevenue > 0 ? client.totalRevenue : 1) * 100).toFixed(2),
         jobCount: client.jobCount
       };
 
@@ -2045,7 +2055,216 @@ routes.get("/jobPnLSummary", async (req, res) => {
       });
 
       return summary;
-    }).sort((a, b) => b.totalProfitLoss - a.totalProfitLoss); // Sort by P&L descending
+    }).sort((a, b) => a.clientName.localeCompare(b.clientName)); // Sort by client name alphabetically
+
+    return res.json({ status: "success", result });
+
+  }catch(error){
+    console.error(error);
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
+  }
+});
+
+// Helper function to get client summary for a date range
+const getClientSummary = async (from, to, company, includeFields) => {
+  // Determine which SE_Job fields to include (vol, weight, shpVol, teu)
+  const validSEJobFields = ['vol', 'weight', 'shpVol', 'teu'];
+  const selectedFields = includeFields.filter(f => validSEJobFields.includes(f));
+  const seJobAttributes = ['id', 'jobNo', 'subType', 'ClientId', ...selectedFields];
+
+  // Build where clause for SE_Job with company filter
+  const jobWhereClause = {
+    createdAt: {
+      [Op.gte]: from.toDate(),
+      [Op.lte]: to.toDate(),
+    }
+  };
+
+  // Add company filter if provided
+  if (company && company !== '4') {
+    jobWhereClause.companyId = company;
+  } else if (company === '4') {
+    jobWhereClause.companyId = { [Op.in]: ['1', '3'] };
+  }
+
+  // Fetch all jobs within date range and company filter with their charge heads
+  const jobs = await SE_Job.findAll({
+    where: jobWhereClause,
+    attributes: seJobAttributes,
+    include:[
+      { 
+        model: Clients,
+        attributes: ['id', 'name'],
+        required: false
+      },
+      { 
+        model: Voyage, 
+        attributes:['voyage', 'importArrivalDate', 'exportSailDate'], 
+        required: false 
+      },
+      {
+        model: Charge_Head,
+        attributes: ['type', 'local_amount'],
+        required: false,
+        include: [
+          {
+            model: Invoice,
+            attributes:['id','invoice_No', 'payType', 'currency', 'ex_rate', 'total', 'approved', 'createdAt'],
+            required: false,
+            where: { approved: "1" }
+          }
+        ]
+      }
+    ]
+  });
+
+  // Group by ClientId and calculate revenue, expense, P&L
+  const clientMap = new Map();
+
+  for (const job of jobs) {
+    const clientId = job.ClientId;
+    
+    if (!clientId) continue; // Skip jobs without a client
+
+    // Initialize client entry if not exists
+    if (!clientMap.has(clientId)) {
+      clientMap.set(clientId, {
+        clientId: clientId,
+        clientName: job.Client?.name || "(Unknown)",
+        totalRevenue: 0,
+        totalExpense: 0,
+        jobCount: 0
+      });
+      
+      // Initialize field totals if selected
+      selectedFields.forEach(field => {
+        clientMap.get(clientId)[`total${field.charAt(0).toUpperCase()}${field.slice(1)}`] = 0;
+      });
+    }
+
+    const client = clientMap.get(clientId);
+    client.jobCount += 1;
+    
+    // Add job field values to totals if selected
+    selectedFields.forEach(field => {
+      const totalKey = `total${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+      if (job[field] !== undefined) {
+        client[totalKey] += parseFloat(job[field]) || 0;
+      }
+    });
+
+    // Skip if no charge heads for this job
+    if (!job.Charge_Heads || job.Charge_Heads.length === 0) continue;
+
+    // Process charge heads for this job
+    for (const charge of job.Charge_Heads) {
+      // Skip if no associated invoice or not approved
+      if (!charge.Invoice || charge.Invoice.approved !== "1") continue;
+
+      // Use local_amount as it's already in base currency
+      const baseAmount = parseFloat(charge.local_amount) || 0;
+
+      // Accumulate revenue and expense by charge type
+      if (charge.type === 'Recievable') {
+        client.totalRevenue += baseAmount;
+      } else if (charge.type === 'Payble') {
+        client.totalExpense += baseAmount;
+      }
+    }
+  }
+
+  return clientMap;
+};
+
+routes.get("/jobPnLComparison", async (req, res) => {
+  try{
+    const query = req.query || {};
+    const from1 = moment(query.from1).startOf("day");
+    const to1   = moment(query.to1).endOf("day");
+    const from2 = moment(query.from2).startOf("day");
+    const to2   = moment(query.to2).endOf("day");
+    
+    if (!from1.isValid() || !to1.isValid() || !from2.isValid() || !to2.isValid()) {
+      console.error("Invalid date format for jobPnLComparison:", { from1: query.from1, to1: query.to1, from2: query.from2, to2: query.to2 });
+      return res.status(400).json({ status: "error", message: "Invalid date format" });
+    }
+
+    // Determine which SE_Job fields to include (vol, weight, shpVol, teu)
+    const includeFields = query.includeFields ? query.includeFields.split(",").map(f => f.trim()) : [];
+    const validSEJobFields = ['vol', 'weight', 'shpVol', 'teu'];
+    const selectedFields = includeFields.filter(f => validSEJobFields.includes(f));
+    const company = query.company;
+
+    // Get summaries for both periods
+    const clientMap1 = await getClientSummary(from1, to1, company, includeFields);
+    const clientMap2 = await getClientSummary(from2, to2, company, includeFields);
+
+    // Combine all client IDs
+    const allClientIds = new Set([...clientMap1.keys(), ...clientMap2.keys()]);
+
+    // Build comparison result
+    const result = Array.from(allClientIds).map(clientId => {
+      const client1 = clientMap1.get(clientId) || (() => {
+        const defaultClient = {
+          clientId,
+          clientName: clientMap2.get(clientId)?.clientName || "(Unknown)",
+          totalRevenue: 0,
+          totalExpense: 0,
+          jobCount: 0
+        };
+        selectedFields.forEach(field => {
+          defaultClient[`total${field.charAt(0).toUpperCase()}${field.slice(1)}`] = 0;
+        });
+        return defaultClient;
+      })();
+      const client2 = clientMap2.get(clientId) || (() => {
+        const defaultClient = {
+          clientId,
+          clientName: client1.clientName,
+          totalRevenue: 0,
+          totalExpense: 0,
+          jobCount: 0
+        };
+        selectedFields.forEach(field => {
+          defaultClient[`total${field.charAt(0).toUpperCase()}${field.slice(1)}`] = 0;
+        });
+        return defaultClient;
+      })();
+
+      // Calculate GP for each period
+      const gp1 = parseFloat((client1.totalRevenue - client1.totalExpense)/parseFloat(client1.totalRevenue || 1).toFixed(2)) * 100;
+      const gp2 = parseFloat((client2.totalRevenue - client2.totalExpense)/parseFloat(client2.totalRevenue || 1).toFixed(2)) * 100;
+      const variance = parseFloat((gp1 - gp2).toFixed(2));
+
+      const comparison = {
+        clientId: clientId,
+        clientName: client1.clientName,
+        period1: {
+          totalRevenue: parseFloat(client1.totalRevenue.toFixed(2)),
+          totalExpense: parseFloat(client1.totalExpense.toFixed(2)),
+          PnL: parseFloat((client1.totalRevenue - client1.totalExpense).toFixed(2)),
+          GP: gp1,
+          jobCount: client1.jobCount
+        },
+        period2: {
+          totalRevenue: parseFloat(client2.totalRevenue.toFixed(2)),
+          totalExpense: parseFloat(client2.totalExpense.toFixed(2)),
+          PnL: parseFloat((client2.totalRevenue - client2.totalExpense).toFixed(2)),
+          GP: gp2,
+          jobCount: client2.jobCount
+        },
+        variance: variance
+      };
+
+      // Add selected field totals for both periods
+      selectedFields.forEach(field => {
+        const totalKey = `total${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+        comparison.period1[totalKey] = parseFloat((client1[totalKey] || 0).toFixed(2));
+        comparison.period2[totalKey] = parseFloat((client2[totalKey] || 0).toFixed(2));
+      });
+
+      return comparison;
+    }).sort((a, b) => a.clientName.localeCompare(b.clientName)); // Sort by client name alphabetically
 
     return res.json({ status: "success", result });
 
