@@ -1339,7 +1339,7 @@ routes.post("/makeTransaction", async (req, res) => {
 
 routes.post("/createVoucher", async(req, res) => {
   try{
-    console.log("Create Voucher>>", req.body)
+    // console.log("Create Voucher>>", req.body)
     let voucher_Heads = req.body.Voucher_Heads
     const lastVoucher = await Vouchers.findOne({
       where: {

@@ -312,7 +312,7 @@ routes.get("/getClients", async(req, res) => {
             order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] ,
             include: [{
                 model: Client_Associations,
-                required: true
+                required: false
             }]
         });
         res.json({status:'success', result:result});
