@@ -483,8 +483,12 @@ routes.get("/get", async (req, res) => {
       group: [
         "SE_Job.id",
         "created_by.id",
+        "created_by.name",
         "Bl.id",
-        "Client.id"
+        "Bl.hbl",
+        "Bl.mbl",
+        "Client.id",
+        "Client.name"
       ],
 
       order: [["createdAt", "DESC"]],
@@ -950,14 +954,7 @@ routes.post("/editBl", async (req, res) => {
       };
     });
 
-    const result = await Container_Info.bulkCreate(data.Container_Infos, {
-      updateOnDuplicate: [
-        "pkgs", "no", "seal", "size", "rategroup", "gross", "net", "tare",
-        "wtUnit", "cbm", "unit", "temp", "loadType", "remarks",
-        "detention", "demurge", "plugin", "dg", "number", "date",
-        "top", "right", "left", "front", "back"
-      ],
-    });
+    const result = await Container_Info.bulkCreate(data.Container_Infos);
 
     if (data.Item_Details.length > 0) {
       let tempItems = [];
@@ -966,12 +963,7 @@ routes.post("/editBl", async (req, res) => {
         tempItems.push({ ...x, BlId: data.id });
       });
 
-      await Item_Details.bulkCreate(tempItems, {
-        updateOnDuplicate: [
-          "noOfPcs", "unit", "grossWt", "kh_lb", "r_class", "itemNo",
-          "chargableWt", "rate_charge", "total", "lineWeight"
-        ],
-      });
+      await Item_Details.bulkCreate(tempItems);
     }
 
     if (data.Dimensions.length > 0) {
@@ -981,11 +973,7 @@ routes.post("/editBl", async (req, res) => {
         tempItems.push({ ...x, BlId: data.id });
       });
 
-      await Dimensions.bulkCreate(tempItems, {
-        updateOnDuplicate: [
-          "length", "width", "height", "qty", "vol", "weight"
-        ],
-      });
+      await Dimensions.bulkCreate(tempItems);
     }
 
     await Stamps.destroy({ where: { id: data.deleteArr } });
@@ -993,9 +981,16 @@ routes.post("/editBl", async (req, res) => {
     await Item_Details.destroy({ where: { id: data.deletingItemList } });
     await Dimensions.destroy({ where: { id: data.deletingDimensionsList } });
 
-    await data.stamps?.map((x) =>
-      Stamps.upsert({ ...x, BlId: data.id })
-    );
+    // Create new stamps (old ones already deleted)
+    if (data.stamps && data.stamps.length > 0) {
+      await Promise.all(
+        data.stamps.map((x) =>
+          Stamps.create({ ...x, BlId: data.id }).catch((err) => {
+            console.error("Error creating stamp:", err.message);
+          })
+        )
+      );
+    }
 
     const res1 = await SE_Job.findOne({
       where: { id: data.SEJobId },
@@ -1006,6 +1001,7 @@ routes.post("/editBl", async (req, res) => {
     res.json({ status: "success", result });
 
   } catch (error) {
+    console.error(error);
     res.json({ status: "error", result: error });
   }
 });
