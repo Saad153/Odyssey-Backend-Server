@@ -3248,4 +3248,223 @@ routes.post("/uploadLogJobs", async (req, res) => {
   }
 })
 
+routes.post("/fixSalesRep", async (req, res) => {
+  try{
+    const jobs = await SE_Job.findAll()
+    console.log(jobs.length)
+    console.log(jobs[0]);
+    const JobsMap = new Map(
+      jobs.map(j => [j.climaxId, j.id])
+    )
+    for(let job of req.body.SEJob){
+      let SR = null
+      switch(job.SalesRepId){
+        case '2':
+          SR = '39fc0d3f-6966-46af-b22b-81e1093e4e9b'
+          break;
+        case '3':
+          SR = '3d237d09-d8ba-47f1-8764-22cff8e11639'
+          break;
+        case '4':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '5':
+          SR = 'cc0f0715-0726-4e6b-8c6c-ed1f8c4123b7'
+          break;
+        case '6':
+          SR = 'c6e2f5a1-4dee-4656-b556-77c276678b80'
+          break;
+        case '7':
+          SR = 'ad4c4b63-ea0c-4cb3-b8a5-1e8606dc988d'
+          break;
+        case '8':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '9':
+          SR = 'be19f9e5-3d53-4567-abc3-6af8ab098de3'
+          break;
+        case '10':
+          SR = null
+          break;
+        case '11':
+          SR = '70219e0b-0921-4048-8416-9f754ff5b9e1'
+          break;
+        case '12':
+          SR = null
+          break;
+      }
+      let jobId = JobsMap.get(parseInt(job.Id))
+      if(jobId != undefined){
+        await SE_Job.update(
+          {
+            salesRepresentatorId: SR
+          },
+          {
+            where: { id: jobId },
+          }
+        );
+      }else{
+        console.warn(`No SE_Job found for climaxId=${job.Id}`);
+      }
+    }
+    for(let job of req.body.SIJob){
+      let SR = null
+      switch(job.SalesmanId){
+        case '2':
+          SR = '39fc0d3f-6966-46af-b22b-81e1093e4e9b'
+          break;
+        case '3':
+          SR = '3d237d09-d8ba-47f1-8764-22cff8e11639'
+          break;
+        case '4':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '5':
+          SR = 'cc0f0715-0726-4e6b-8c6c-ed1f8c4123b7'
+          break;
+        case '6':
+          SR = 'c6e2f5a1-4dee-4656-b556-77c276678b80'
+          break;
+        case '7':
+          SR = 'ad4c4b63-ea0c-4cb3-b8a5-1e8606dc988d'
+          break;
+        case '8':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '9':
+          SR = 'be19f9e5-3d53-4567-abc3-6af8ab098de3'
+          break;
+        case '10':
+          SR = null
+          break;
+        case '11':
+          SR = '70219e0b-0921-4048-8416-9f754ff5b9e1'
+          break;
+        case '12':
+          SR = null
+          break;
+      }
+      let jobId = JobsMap.get(parseInt(job.Id))
+      if(jobId != undefined){
+        await SE_Job.update(
+          {
+            salesRepresentatorId: SR
+          },
+          {
+            where: { id: jobId },
+          }
+        );
+      }else{
+        console.warn(`No SI_Job found for climaxId=${job.Id}`);
+      }
+    }
+    for(let job of req.body.AEJob){
+      let SR = null
+      switch(job.SalesRepId){
+        case '2':
+          SR = '39fc0d3f-6966-46af-b22b-81e1093e4e9b'
+          break;
+        case '3':
+          SR = '3d237d09-d8ba-47f1-8764-22cff8e11639'
+          break;
+        case '4':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '5':
+          SR = 'cc0f0715-0726-4e6b-8c6c-ed1f8c4123b7'
+          break;
+        case '6':
+          SR = 'c6e2f5a1-4dee-4656-b556-77c276678b80'
+          break;
+        case '7':
+          SR = 'ad4c4b63-ea0c-4cb3-b8a5-1e8606dc988d'
+          break;
+        case '8':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '9':
+          SR = 'be19f9e5-3d53-4567-abc3-6af8ab098de3'
+          break;
+        case '10':
+          SR = null
+          break;
+        case '11':
+          SR = '70219e0b-0921-4048-8416-9f754ff5b9e1'
+          break;
+        case '12':
+          SR = null
+          break;
+      }
+      let jobId = JobsMap.get(parseInt(job.Id))
+      if(jobId != undefined){
+        await SE_Job.update(
+          {
+            salesRepresentatorId: SR
+          },
+          {
+            where: { id: jobId },
+          }
+        );
+      }else{
+        console.warn(`No AE_Job found for climaxId=${job.Id}`);
+      }
+    }
+    for(let job of req.body.AIJob){
+      let SR = null
+      switch(job.SalesRepId){
+        case '2':
+          SR = '39fc0d3f-6966-46af-b22b-81e1093e4e9b'
+          break;
+        case '3':
+          SR = '3d237d09-d8ba-47f1-8764-22cff8e11639'
+          break;
+        case '4':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '5':
+          SR = 'cc0f0715-0726-4e6b-8c6c-ed1f8c4123b7'
+          break;
+        case '6':
+          SR = 'c6e2f5a1-4dee-4656-b556-77c276678b80'
+          break;
+        case '7':
+          SR = 'ad4c4b63-ea0c-4cb3-b8a5-1e8606dc988d'
+          break;
+        case '8':
+          SR = '0a1d9101-0deb-426d-b833-8204cab73c13'
+          break;
+        case '9':
+          SR = 'be19f9e5-3d53-4567-abc3-6af8ab098de3'
+          break;
+        case '10':
+          SR = null
+          break;
+        case '11':
+          SR = '70219e0b-0921-4048-8416-9f754ff5b9e1'
+          break;
+        case '12':
+          SR = null
+          break;
+      }
+      let jobId = JobsMap.get(parseInt(job.Id))
+      if(jobId != undefined){
+        await SE_Job.update(
+          {
+            salesRepresentatorId: SR
+          },
+          {
+            where: { id: jobId },
+          }
+        );
+      }else{
+        console.warn(`No AI_Job found for climaxId=${job.Id}`);
+      }
+    }
+    res.status(200).json({ status: 'success', result: JobsMap })
+  }catch(e){
+    console.error(e)
+    res.status(500).json({status: 'error', result: e.message})
+  }
+})
+
 module.exports = routes;
