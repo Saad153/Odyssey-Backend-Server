@@ -95,12 +95,15 @@ routes.post("/editEmployee", async(req, res) => {
 
 routes.get("/getEmployees", async(req, res) => {
     try {
-        const result = await Employees.findAll({include:[
-            {
-                model:Access_Levels,
-                attributes:['id', 'access_name']
-            }
-        ], where:{active:'1'}})
+
+        const result = await Employees.findAll({
+        include: [{
+            model: Access_Levels,
+            attributes: ['id', 'access_name']
+        }],
+        where: { active: '1' }
+        });
+
         res.json({status:'success', result:result});
     }
     catch (error) {
