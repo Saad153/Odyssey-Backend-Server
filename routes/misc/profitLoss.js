@@ -187,34 +187,50 @@ routes.get(`/${url}/search`, async(req, res) => {
 });
 
 async function getAccountVoucherHierarchy(parentId = null, company) {
-  const accounts = await Child_Account.findAll({
-    where: { ChildAccountId: parentId },
-    order: [['id', 'ASC']],
-    include: [{
-      model: Voucher_Heads,
+  try{
+    const accounts = await Child_Account.findAll({
+      where: { ChildAccountId: parentId },
+      order: [['id', 'ASC']],
       include: [{
-        model: Vouchers,
-        attributes: ['id', 'vType'],
-        where: { CompanyId: company }
+        model: Voucher_Heads,
+        include: [{
+          model: Vouchers,
+          attributes: ['id', 'vType'],
+          where: { CompanyId: company }
+        }]
       }]
-    }]
-  });
-  const result = await Promise.all(
-    accounts.map(async (account) => {
-      const children = await getAccountVoucherHierarchy(account.id, company);
-      return {
-        ...account.get({ plain: true }),
-        children
-      };
-    })
-  );
+    });
+    const result = await Promise.all(
+      accounts.map(async (account) => {
+        const children = await getAccountVoucherHierarchy(account.id, company);
+        return {
+          ...account.get({ plain: true }),
+          children
+        };
+      })
+    );
 
-  return result;
+    return result;
+  }catch(error){
+    console.error(error);
+  }
 }
 
 routes.get(`/${url}/incomeStatement`, async(req, res) => {
   try {
     const result = await getAccountVoucherHierarchy(null, req.headers.company);
+    res.json({status:'success', result:result});
+  }
+  catch (error) {
+    console.error(error);
+    res.json({status: 'error', result: error});
+  }
+});
+
+routes.get(`/${url}/ISComparitive`, async(req, res) => {
+  try {
+    console.log(req.query);
+    const result = await getAccountVoucherHierarchy(null, req.query.company);
     res.json({status:'success', result:result});
   }
   catch (error) {

@@ -256,15 +256,16 @@ routes.post("/createClientInBulk", async(req, res) => {
 });
 
 routes.post("/editClient", async (req, res) => {
-  db.sequelize.transaction(async (t) => {
-    try {
+  try {
+    await db.sequelize.transaction(async (t) => {
+    //   console.log("Request Body:", req.body);
+
       let value = req.body.data;
-      value.id = value.id;
       value.operations = value.operations.join(', ');
       value.types = value.types.join(', ');
 
       await Clients.update(
-        { ...value, code: parseInt(value.code) },
+        { ...value, code: parseInt(value.code, 10) },
         { where: { id: value.id }, transaction: t }
       );
 
@@ -274,36 +275,79 @@ routes.post("/editClient", async (req, res) => {
       });
 
       if (clientAssociation && req.body.pAccountName) {
-        const pAccountList = await Child_Account.findOne({
+        const pAccount = await Child_Account.findOne({
           where: { id: req.body.pAccountName },
           transaction: t
         });
-        
-        if (pAccountList) {
+
+        if (pAccount) {
           await Child_Account.update(
             {
               title: value.name,
-              ChildAccountId: pAccountList.id
+              ChildAccountId: pAccount.id,
             },
-            { where: { id: clientAssociation.ChildAccountId }, transaction: t }
+            {
+              where: { id: clientAssociation.ChildAccountId },
+              transaction: t
+            }
+          );
+          await Clients.update(
+            { nongl: '0' },
+            { where: { id: value.id }, transaction: t }
           );
         }
+      } else if (req.body.pAccountName) {
+        
+        const highestCodeAccount = await Child_Account.findOne({
+        where: {
+            ChildAccountId: req.body.pAccountName,
+            code: {
+            [Sequelize.Op.regexp]: '^[0-9]+$' // ✅ only numeric strings
+            }
+        },
+        order: [[Sequelize.literal('CAST("code" AS INTEGER)'), 'DESC']],
+        transaction: t
+        });
+
+        const newAccount = await Child_Account.create(
+          {
+            title: value.name,
+            subCategory: 'Customer',
+            editable: false,
+            code: highestCodeAccount
+              ? parseInt(highestCodeAccount.code, 10) + 1
+              : 1,
+            ChildAccountId: req.body.pAccountName
+          },
+          { transaction: t }
+        );
+
+        await Client_Associations.create(
+          {
+            ClientId: value.id,
+            ChildAccountId: newAccount.id
+          },
+          { transaction: t }
+        );
+
+        await Clients.update(
+          { nongl: '0' },
+          { where: { id: value.id }, transaction: t }
+        );
       }
+    });
 
-      // Side-effect (non-transactional), preserved exactly as you had it
-      createHistory(req.body.employeeId, 'Client', 'Edit', value.name);
+    // ✅ Response ONLY after successful commit
+    return res.json({ status: 'success' });
 
-      res.json({ status: 'success' });
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  }).catch((error) => {
-    console.error(error)
-    return res.json({ status: 'error', result: error });
-  });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
 });
-``
 
 routes.get("/getClients", async(req, res) => {
     try {

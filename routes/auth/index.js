@@ -110,6 +110,7 @@ routes.post('/login', async (req, res) => {
 
 
 routes.get("/verifyLogin", verify, (req, res) => {
+  req.user = req.user || { username: 'Unknown' }; // Fallback for safety
   res.json({
     isLoggedIn: true,
     username: req.user.username,
