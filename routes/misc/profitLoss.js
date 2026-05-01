@@ -227,11 +227,66 @@ routes.get(`/${url}/incomeStatement`, async(req, res) => {
   }
 });
 
+const getComparitiveData = async (accountId, company, from, to) => {
+  try{
+    const result = await Child_Account.findOne({
+      where: {
+        id: accountId
+      },
+      include: {
+        model: Voucher_Heads,
+        where: {
+          createdAt: {
+              [Op.gte]: moment(from).toDate(),
+              [Op.lte]: moment(to).toDate(),
+          }
+        },
+        include: {
+          model: Vouchers,
+          where: {
+            CompanyId: company
+          }
+        }
+      }
+    })
+    return result
+  }catch(e){
+    console.error(e)
+    // res.status(500).json({ status: 'error', result: e.message })
+    return e.message
+  } 
+}
+
+
 routes.get(`/${url}/ISComparitive`, async(req, res) => {
   try {
     console.log(req.query);
-    const result = await getAccountVoucherHierarchy(null, req.query.company);
-    res.json({status:'success', result:result});
+    const revenue = [
+      {
+        id: 5120
+      },
+      {
+        id: 5122
+      },
+      {
+        id: 5131
+      }
+    ]
+    const COS = [
+      {
+        id: 5148
+      },
+      {
+        id: 5152
+      },
+      {
+        id: 5162
+      },
+    ]
+    const result = await getComparitiveData(5149, 1, req.query.from, req.query.to)
+
+
+    res.json({ status:'success', result: result });
   }
   catch (error) {
     console.error(error);

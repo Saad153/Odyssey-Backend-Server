@@ -957,12 +957,16 @@ routes.post("/editBl", async (req, res) => {
     const result = await Container_Info.bulkCreate(data.Container_Infos);
 
     if (data.Item_Details.length > 0) {
+      await Item_Details.destroy({
+        where: {
+          BlId: data.id
+        }
+      })
       let tempItems = [];
       data.Item_Details.forEach((x) => {
         x.id == null ? delete x.id : null;
         tempItems.push({ ...x, BlId: data.id });
       });
-
       await Item_Details.bulkCreate(tempItems);
     }
 
