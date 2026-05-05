@@ -971,6 +971,11 @@ routes.post("/editBl", async (req, res) => {
     }
 
     if (data.Dimensions.length > 0) {
+      await Dimensions.destroy({
+        where: {
+          BlId: data.id
+        }
+      })
       let tempItems = [];
       data.Dimensions.forEach((x) => {
         x.id == null ? delete x.id : null;
