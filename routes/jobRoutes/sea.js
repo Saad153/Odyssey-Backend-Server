@@ -1754,7 +1754,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
         await UploadChargesRecv(job.SeaExportJob_ChargesRecv, job, savedJob, accountMap, companyId)
       }
     }
-    createHistory(req.body.employeeId, 'Upload Job', 'Edit', result.name);
+    // createHistory(req.body.employeeId, 'Upload Job', 'Edit', result.name);
     res.json({ status: "success", result: jobs });
   }catch(e){
     console.error(e)

@@ -145,7 +145,7 @@ routes.post("/uploadVoyages", async(req, res) => {
         }
         Vessels.push(ve)
       }
-      createHistory(req.body.employeeId, 'Vessel', 'Upload', result.name);
+      // createHistory(req.body.employeeId, 'Vessel', 'Upload', result.name);
       res.json({status:'success', result:Vessels});
     }
     catch (error) {

@@ -1687,7 +1687,7 @@ routes.post("/importVouchers", async (req, res) => {
     /* ===============================
         FINAL RESPONSE
     =============================== */
-    createHistory(req.body.employeeId, 'Voucher', 'Import', result.name);
+    // createHistory(req.body.employeeId, 'Voucher', 'Import', result.name);
     return res.json({
       status: "completed",
       successCount: success.length,
@@ -1839,7 +1839,7 @@ routes.post("/importV", async (req, res) => {
     /* ============================================
                      FINAL RESPONSE
     ============================================ */
-    createHistory(req.body.employeeId, 'Voucher', 'Imported', result.name);
+    // createHistory(req.body.employeeId, 'Voucher', 'Imported', result.name);
     return res.json({ status: "success", message: "All vouchers imported." });
 
   } catch (e) {
@@ -2010,7 +2010,7 @@ routes.post("/importI", async (req, res) => {
         }, { silent: true });
       }
     }
-    createHistory(req.body.employeeId, 'Invoice', 'Imported', result.name);
+    // createHistory(req.body.employeeId, 'Invoice', 'Imported', result.name);
     res.json({ status: "success" });
   } catch (e) {
     console.error("Error", e);
