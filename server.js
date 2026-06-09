@@ -16,5 +16,5 @@ if (cluster.isPrimary) {
     cluster.fork();
   });
 } else {
-  require('./app');
+  require('./index.js');
 }

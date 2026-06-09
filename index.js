@@ -229,7 +229,10 @@ app.use((err, req, res, next) => {
 });
 
 /* -------------------- SERVER CREATION -------------------- */
-const PORT = process.env.PORT || 8084;
+const args = process.argv.slice(2);
+const portArgIndex = args.findIndex(arg => arg === '-p' || arg === '--port');
+const argPort = portArgIndex !== -1 ? Number(args[portArgIndex + 1]) : NaN;
+const PORT = Number.isInteger(argPort) ? argPort : Number(process.env.PORT) || 8084;
 
 async function start() {
   try {

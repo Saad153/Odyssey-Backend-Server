@@ -11,18 +11,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
     "jsonwebtoken": "^9.0.0",
-    "lru-cache": "^11.3.5",
-    "morgan": "^1.10.0",
-    "mysql2": "^3.9.4",
-    "nodemon": "^3.0.1",
+    "lru-cache": "^11.5.1",
+    "morgan": "^1.11.0",
+    "mysql2": "^3.22.5",
     "ollama": "^0.6.3",
-    "pg": "^8.12.0",
-    "sequelize": "^6.25.5",
+    "pg": "^8.21.0",
+    "sequelize": "^6.37.8",
     "sequelize-cli": "^6.5.2",
     "sequelize-cockroachdb": "^6.0.5",
-    "undici": "^7.18.2"
+    "undici": "^7.27.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
