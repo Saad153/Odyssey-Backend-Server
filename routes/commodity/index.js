@@ -54,7 +54,7 @@ routes.post("/uploadCommodities", async (req, res) => {
         for(let c of req.body.Commodities){
           i++
             await Commodity.create({
-              name: c.CommodityName,
+              name: c.HsDescription,
               hs: c.HSCode,
               cargoType: '',
               commodityGroup: '',

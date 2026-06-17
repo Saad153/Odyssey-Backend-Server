@@ -673,8 +673,12 @@ routes.post("/saveHeadesNew", async(req, res) => {
 // This api shows the heads added on the related Job
 routes.get("/getHeadesNew", async(req, res) => {
   try {
+    const jobId = req.query.id || req.headers.id;
+    if (!jobId) {
+      return res.json({status:'error', result:'SEJobId parameter is required'});
+    }
     const result = await Charge_Head.findAll({
-      where: { SEJobId: req.headers.id },
+      where: { SEJobId: jobId },
       include: [
         {
           model: Invoice,
