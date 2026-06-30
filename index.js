@@ -1,30 +1,31 @@
-
 // // app.js
 // const express = require('express');
-// const app = express();
 // const morgan = require('morgan');
 // const cors = require('cors');
 // const db = require('./models');
+// const http = require('http');
 
-// // Increase undici timeouts to tolerate slow, CPU-only model responses
+// const app = express();
+
+// /* -------------------- UNDICI GLOBAL DISPATCHER -------------------- */
 // const { Agent, setGlobalDispatcher } = require('undici');
+
 // setGlobalDispatcher(new Agent({
-//   headersTimeout: 900_000, // 15 minutes
-//   bodyTimeout: 0,          // disable body timeout (or set a large value)
+//   connections: 200,        // VERY important for load
+//   pipelining: 1,
+//   headersTimeout: 900_000,
+//   bodyTimeout: 0,
 // }));
 
-// // ----- Middlewares -----
+// /* -------------------- MIDDLEWARES -------------------- */
 // app.use(morgan('tiny'));
 // app.use(cors());
 
-// // Choose ONE set of parsers: use built-in express body parsers
+// // ⚠️ Reduced limits to avoid event loop death
 // app.use(express.json({ limit: '100mb' }));
 // app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// // If your clients use custom headers/methods, uncomment for robust preflight handling:
-// // app.options('*', cors());
-
-// // ----- Routes -----
+// /* -------------------- ROUTES -------------------- */
 // const miscProfitLossRoutes = require('./routes/misc/profitLoss');
 // const misctrialBalanceRoutes = require('./routes/misc/trialBalance');
 // const homeOperationsRoutes = require('./routes/home/operations');
@@ -45,36 +46,31 @@
 // const voucherRoutes = require('./routes/voucher');
 // const ollamaRoutes = require('./routes/ollama');
 // const invoiceRoutes = require('./routes/invoice');
-// // const vendorRoutes = require('./routes/vendors');
 // const vesselRoutes = require('./routes/vessel');
 // const manifest = require('./routes/manifest');
 // const authRoutes = require('./routes/auth/');
 // const ports = require('./routes/ports');
 // const verify = require('./functions/tokenVerification');
 
-// // Side-effect imports / association initializers
-// const {
-//   SE_Equipments, SE_Job, Container_Info, Bl, Stamps, Job_notes,
-//   Delivery_Order, Item_Details, Manifest: ManifestModel, Manifest_Jobs
-// } = require('./functions/Associations/jobAssociations/seaExport');
-// // const { Vendors, Vendor_Associations } = require('./functions/Associations/vendorAssociations');
-// const { Clients, Client_Associations } = require('./functions/Associations/clientAssociation');
-// const { Vouchers, Voucher_Heads } = require('./functions/Associations/voucherAssociations');
-// const { Invoice_Transactions } = require('./functions/Associations/incoiceAssociations');
-// const { Notifications } = require('./functions/Associations/NotificationAssociation');
-// const { AssignTask, Tasks, Sub_Tasks, Task_Logs } = require('./functions/Associations/taskAssociation');
-// const { Voyage } = require('./functions/Associations/vesselAssociations');
+// /* -------------------- ASSOCIATIONS (SIDE EFFECTS) -------------------- */
+// require('./functions/Associations/jobAssociations/seaExport');
+// require('./functions/Associations/clientAssociation');
+// require('./functions/Associations/voucherAssociations');
+// require('./functions/Associations/incoiceAssociations');
+// require('./functions/Associations/NotificationAssociation');
+// require('./functions/Associations/taskAssociation');
+// require('./functions/Associations/vesselAssociations');
 
-// // ----- Basic routes -----
+// /* -------------------- BASIC ROUTES -------------------- */
 // app.get('/getUser', verify, (req, res) => {
 //   res.json({ isLoggedIn: true, username: req.body.username });
 // });
 
 // app.get('/', (req, res) => {
-//   res.json('Welcome To Odyssey Server in Hail Dot Tech on Koyeb');
+//   res.json('Welcome To Odyssey Server');
 // });
 
-// // ----- Mount routers -----
+// /* -------------------- MOUNT ROUTERS -------------------- */
 // app.use('/home', homeAccountRoutes, homeOperationsRoutes, homeDashboardRoutes);
 // app.use('/misc', miscPartiesRoutes, miscProfitLossRoutes, misctrialBalanceRoutes);
 // app.use('/notifications', notificationRoutes);
@@ -91,39 +87,50 @@
 // app.use('/voucher', voucherRoutes);
 // app.use('/ollama', ollamaRoutes);
 // app.use('/vessel', vesselRoutes);
-// // app.use('/vendor', vendorRoutes);
 // app.use('/seaJob', seaJobRoutes);
 // app.use('/tasks', assignedTasks);
 // app.use('/manifest', manifest);
 // app.use('/ports', ports);
 
-// // ----- Global error handler (optional but recommended) -----
-// /* eslint-disable no-unused-vars */
+// /* -------------------- ERROR HANDLER -------------------- */
 // app.use((err, req, res, next) => {
 //   console.error('Unhandled error:', err);
-//   const status = err.status || 500;
-//   res.status(status).json({
+//   res.status(err.status || 500).json({
 //     status: 'error',
 //     error: err.message || 'Internal Server Error',
 //   });
 // });
-// /* eslint-enable no-unused-vars */
 
-// // ----- Start server after DB sync -----
-// const PORT = process.env.PORT || 8084;
+// /* -------------------- SERVER CREATION -------------------- */
+// const args = process.argv.slice(2);
+// const portArgIndex = args.findIndex(arg => arg === '-p' || arg === '--port');
+// const argPort = portArgIndex !== -1 ? Number(args[portArgIndex + 1]) : NaN;
+// const PORT = Number.isInteger(argPort) ? argPort : Number(process.env.PORT) || 8084;
 
-// (async () => {
+// async function start() {
 //   try {
-//     await db.sequelize.sync(); // optionally: { alter: false, force: false }
-//     app.listen(PORT, () => {
-//       console.log(`App listening on port ${PORT}`);
+//     // ✅ DO NOT sync schemas under load
+//     await db.sequelize.authenticate();
+
+//     const server = http.createServer(app);
+
+//     // ✅ Critical socket tuning
+//     server.keepAliveTimeout = 65_000;
+//     server.headersTimeout = 70_000;
+//     server.maxConnections = 1000;
+
+//     server.listen(PORT, () => {
+//       console.log(`Worker ${process.pid} listening on ${PORT}`);
 //     });
 //   } catch (err) {
-//     console.error('Failed to start server (DB sync error):', err);
+//     console.error('Server startup failed:', err);
 //     process.exit(1);
 //   }
-// })();
+// }
 
+// start();
+
+// module.exports = app;
 
 // app.js
 const express = require('express');
@@ -188,13 +195,33 @@ require('./functions/Associations/NotificationAssociation');
 require('./functions/Associations/taskAssociation');
 require('./functions/Associations/vesselAssociations');
 
-/* -------------------- BASIC ROUTES -------------------- */
-app.get('/getUser', verify, (req, res) => {
-  res.json({ isLoggedIn: true, username: req.body.username });
-});
-
+/* -------------------- BASIC PUBLIC ROUTES -------------------- */
 app.get('/', (req, res) => {
   res.json('Welcome To Odyssey Server');
+});
+
+/* -------------------- GLOBAL AUTH MIDDLEWARE -------------------- */
+// Update this list to match your actual public auth endpoints
+// (e.g. login, register, forgot-password, health checks).
+// Everything else mounted below will require a valid session.
+const PUBLIC_PATHS = [
+  '/authRoutes/login',
+  '/authRoutes/register',
+  '/authRoutes/verifyLogin',
+  '/companies/getAllCompanies',
+];
+
+app.use((req, res, next) => {
+  console.log('Checking path:', req.path, 'public?', PUBLIC_PATHS.includes(req.path));
+  if (PUBLIC_PATHS.includes(req.path)) {
+    return next();
+  }
+  return verify(req, res, next);
+});
+
+/* -------------------- AUTHENTICATED ROUTES -------------------- */
+app.get('/getUser', (req, res) => {
+  res.json({ isLoggedIn: true, username: req.body.username });
 });
 
 /* -------------------- MOUNT ROUTERS -------------------- */
@@ -203,10 +230,10 @@ app.use('/misc', miscPartiesRoutes, miscProfitLossRoutes, misctrialBalanceRoutes
 app.use('/notifications', notificationRoutes);
 app.use('/employeeRoutes', employeeRoutes);
 app.use('/nonGlParties', nonGlParties);
+app.use('/accounts', accountRoutes);
 app.use('/clientRoutes', clientRoutes);
 app.use('/commodity', commodityRoutes);
 app.use('/companies', companyRoutes);
-app.use('/accounts', accountRoutes);
 app.use('/authRoutes', authRoutes);
 app.use('/history', historyRoutes);
 app.use('/charges', chargesRoutes);

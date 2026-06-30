@@ -14,43 +14,16 @@ const makeAccessList = (data) => {
   return values
 }
 
-// routes.post("/login", async(req, res)=>{
-//     const { contact, password, username } = req.body
-//     const users = await Employees.findOne({
-//       where: {
-//         username: username
-//       },
-//       include:[
-//         { model:Access_Levels, attributes:['access_name'], required: false }
-//     ]})
-//     if(users){
-//       if(password==users.password){
-//         const payload = { designation:users.designation, username:`${users.name}`,loginId:`${users.id}`, access:makeAccessList(users.Access_Levels)}
-//         jwt.sign(payload, 'qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnm', {expiresIn:"12h"},
-//           (err,token) => {
-//             if(err) return res.json({message: err})
-//             return res.json({
-//               message:"Success",
-//               token: "BearerSplit"+token
-//             })
-//           }
-//         )
-//       } else { return res.json({message:"Invalid"}) }
-
-//     } else { return res.json({message:"Invalid"}) }
-// });
-
-
-// const bcrypt = require('bcrypt');
-// const jwt = require('jsonwebtoken');
-
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   'qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnm';
 
+const sessionManager = require('../../functions/sessionManager');
+
 routes.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, force } = req.body;
+    const forceLogin = Boolean(force);
 
     if (!username || !password) {
       return res.status(400).json({
@@ -91,10 +64,20 @@ routes.post('/login', async (req, res) => {
       expiresIn: '12h',
     });
 
-    // ✅ Legacy-compatible token format
+    if (sessionManager.isActive(user.id)) {
+      if (!forceLogin) {
+        return res.status(409).json({ message: 'User already logged in' });
+      }
+      sessionManager.clearSession(user.id);
+    }
+
+    // Record session then return token
+    sessionManager.setSession(user.id, token);
+
     return res.status(200).json({
       message: 'Success',
       token: 'BearerSplit' + token,
+      forceLogin: forceLogin,
     });
 
   } catch (err) {
@@ -109,12 +92,22 @@ routes.post('/login', async (req, res) => {
 // routes.get("/verifyLogin", verify, (req, res) => { res.json({isLoggedIn:true, username:req.body.username}) });
 
 
-routes.get("/verifyLogin", verify, (req, res) => {
+routes.get("/verifyLogin", (req, res) => {
   req.user = req.user || { username: 'Unknown' }; // Fallback for safety
   res.json({
     isLoggedIn: true,
     username: req.user.username,
   });
+});
+
+// Logout clears the stored session for the authenticated user
+routes.post('/logout', (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ message: 'Not authenticated' });
+  }
+
+  sessionManager.clearSession(req.user.id);
+  return res.json({ message: 'Logged out' });
 });
 
 
