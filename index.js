@@ -212,7 +212,7 @@ const PUBLIC_PATHS = [
 ];
 
 app.use((req, res, next) => {
-  console.log('Checking path:', req.path, 'public?', PUBLIC_PATHS.includes(req.path));
+  // console.log('Checking path:', req.path, 'public?', PUBLIC_PATHS.includes(req.path));
   if (PUBLIC_PATHS.includes(req.path)) {
     return next();
   }
