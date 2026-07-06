@@ -3089,8 +3089,6 @@ routes.post("/fixSeaJobs", async (req, res) => {
       i++
       const client = climaxToId.get(parseInt(job.ClientId))
       const shipper = climaxToId.get(parseInt(job.ShipperId))
-      if(job.JobNumber == 'SNS-SEJ-480/26'){
-      }
 
       const [affected] = await SE_Job.update(
         {
