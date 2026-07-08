@@ -18,17 +18,44 @@ routes.post("/create", async(req, res) => {
     }
 });
 
-routes.get("/get", async(req, res) => {
-    try {
-      const result = await Commodity.findAll({
-        order: [['createdAt', 'DESC']]
-      });
-      res.json({status:'success', result:result});
-    }
-    catch (error) {
-      console.error(error)
-      res.json({status:'error', result:error});
-    }
+routes.get("/get", async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search = "" } = req.query;
+
+    const offset = (Number(page) - 1) * Number(limit);
+    const where = search
+      ? {
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${search}%` } },
+            { hs: { [Op.iLike]: `%${search}%` } },
+            { cargoType: { [Op.iLike]: `%${search}%` } },
+            { commodityGroup: { [Op.iLike]: `%${search}%` } },
+            { chemicalName: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    const { count, rows } = await Commodity.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset,
+    });
+
+    res.json({
+      status: "success",
+      result: rows,
+      pagination: {
+        currentPage: Number(page),
+        pageSize: Number(limit),
+        totalRecords: count,
+        totalPages: Math.ceil(count / Number(limit)),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.json({ status: "error", result: error });
+  }
 });
 
 routes.post("/edit", async(req, res) => {
