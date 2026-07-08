@@ -2474,7 +2474,7 @@ routes.post("/createDirectJob", async (req, res) => {
 routes.post("/deleteVoucherHeads", async (req, res) => {
   try {
     const result = await db.sequelize.query("DELETE FROM \"Vouchers\" v1 USING \"Vouchers\" v2 WHERE v1.\"voucher_Id\" = v2.\"voucher_Id\" AND v1.id > v2.id;");
-    createHistory(req.body.employeeId, 'Voucher Heads', 'Delete', result.name);
+    // createHistory(req.body.employeeId, 'Voucher Heads', 'Delete', result.name);
     res.status(200).json({ status: "success", result: result });
   } catch (e) {
     console.error("Error", e)

@@ -54,16 +54,16 @@ routes.post("/uploadCommodities", async (req, res) => {
         for(let c of req.body.Commodities){
           i++
             await Commodity.create({
-              name: c.HsDescription,
+              name: c.CommodityName,
               hs: c.HSCode,
-              cargoType: '',
+              cargoType: 'GL',
               commodityGroup: '',
-              isHazmat: '',
+              isHazmat: c.IsHazmatProduct,
               packageGroup: '',
-              hazmatCode: '',
+              hazmatCode: c.HazmatCode,
               hazmatClass: '',
-              chemicalName: '',
-              unoCode: '',
+              chemicalName: c.CommonChemicalName,
+              unoCode: c.UNOCode,
               active: '',
               climaxId: c.Id
             })
@@ -74,6 +74,24 @@ routes.post("/uploadCommodities", async (req, res) => {
         console.error(i)
         res.status(400).json({status:'error', result:e});
     }
+})
+
+routes.post("/updateCommodity", async (req, res) => {
+  try{
+    const {Id, CommodityName} = req.body;
+    const [affected] = await Commodity.update(
+      {
+        climaxId: Id
+      },
+      {
+        where: { name: CommodityName },
+      }
+    );
+    res.status(200).json({status:'success', result:affected});
+  }catch(e){
+    console.error(e)
+    res.status(400).json({status:'error', result:e});
+  }
 })
 
 module.exports = routes;

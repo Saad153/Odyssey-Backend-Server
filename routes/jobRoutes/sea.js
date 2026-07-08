@@ -2996,14 +2996,30 @@ routes.post("/fixAirJobs", async (req, res) => {
     const AirExportJob = req.body.AirExportJob
     const UNLocation = req.body.UNLocation
     const AExp_BL = req.body.BL
+    const UNAirport = req.body.UNAirport
 
     const clients = await Clients.findAll({
       attributes: ['id', 'climaxId'],
       raw: true, // returns plain objects instead of model instances
     });
 
+    const IdtoShortCOde = new Map(
+      UNAirport.map(l => [l.Id, l.AirportCode])
+    )
+    
     const climaxToId = new Map(
       clients
+      .filter(c => c.climaxId != null) // exclude null/undefined
+      .map(c => [c.climaxId, c.id])
+    );
+    
+    const commodities = await Commodity.findAll({
+      attributes: ['id', 'climaxId'],
+      raw: true, // returns plain objects instead of model instances
+    });
+
+    const climaxToCommodityId = new Map(
+      commodities
         .filter(c => c.climaxId != null) // exclude null/undefined
         .map(c => [c.climaxId, c.id])
     );
@@ -3023,7 +3039,14 @@ routes.post("/fixAirJobs", async (req, res) => {
           cwtLine: job.ChargeableWeightLine,
           cwtClient: job.ChargeableWeightClient,
           weight: job.ActualWeight,
-          fd: fdMap.get(job.FinalDestinationCode)
+          fd: fdMap.get(job.FinalDestinationCode),
+          commodityId: climaxToCommodityId.get(parseInt(job.CommodityId)),
+          departureDate: job.DepartureDate,
+          departureTime: job.DepartureTime,
+          arrivalDate: job.ArrivalDate,
+          arrivalTime: job.ArrivalTime,
+          pol: IdtoShortCOde.get(job.AirPortOfLoadingId),
+          pod: IdtoShortCOde.get(job.AirPortOfDischargeId)
         },
         {
           where: { climaxId: job.Id },
@@ -3037,7 +3060,8 @@ routes.post("/fixAirJobs", async (req, res) => {
 
     for(let job of AirImportJob){
       const localVendor = climaxToId.get(job.LocalVendorId)
-      
+      const commodity = climaxToCommodityId.get(parseInt(job.CommodityId))
+
       const [affected] = await SE_Job.update(
         {
           flightNo: job.FlightNo,
@@ -3045,6 +3069,13 @@ routes.post("/fixAirJobs", async (req, res) => {
           cwtLine: job.ChargeableWeightLine,
           cwtClient: job.ChargeableWeightClient,
           weight: job.ActualWeight,
+          commodityId: commodity,
+          departureDate: job.DepartureDate,
+          // departureTime: job.DepartureTime,
+          arrivalDate: job.ArrivalDate,
+          arrivalTime: job.ArrivalTime,
+          pol: IdtoShortCOde.get(job.AirPortOfLoadingId),
+          pod: IdtoShortCOde.get(job.AirPortOfDischargeId)
         },
         {
           where: { climaxId: job.Id },
@@ -3068,7 +3099,19 @@ routes.post("/fixSeaJobs", async (req, res) => {
   let i = 0
   try{
     const SeaExportJob = req.body.SeaExportJob
+    const SeaImportJob = req.body.SeaImportJob
     const UNLocation = req.body.UNLocation
+
+    const commodities = await Commodity.findAll({
+      attributes: ['id', 'climaxId'],
+      raw: true, // returns plain objects instead of model instances
+    });
+    
+    const climaxToCommodityId = new Map(
+      commodities
+        .filter(c => c.climaxId != null) // exclude null/undefined
+        .map(c => [c.climaxId, c.id])
+    );
 
     const clients = await Clients.findAll({
       attributes: ['id', 'climaxId'],
@@ -3089,12 +3132,37 @@ routes.post("/fixSeaJobs", async (req, res) => {
       i++
       const client = climaxToId.get(parseInt(job.ClientId))
       const shipper = climaxToId.get(parseInt(job.ShipperId))
+      const commodity = climaxToCommodityId.get(parseInt(job.CommodityId))
 
       const [affected] = await SE_Job.update(
         {
           ClientId: client,
           shipperId: shipper,
-          fd: fdMap.get(job.FinalDestinationCode)
+          fd: fdMap.get(job.FinalDestinationCode),
+          commodityId: commodity
+        },
+        {
+          where: { climaxId: job.Id },
+        }
+      );
+
+      if (affected === 0) {
+        console.warn(`No SE_Job found for climaxId=${job.Id}`);
+      }
+    }
+
+    for(let job of SeaImportJob){
+      i++
+      const client = climaxToId.get(parseInt(job.ClientId))
+      const shipper = climaxToId.get(parseInt(job.ShipperId))
+      const commodity = climaxToCommodityId.get(parseInt(job.CommodityId))
+
+      const [affected] = await SE_Job.update(
+        {
+          ClientId: client,
+          shipperId: shipper,
+          fd: fdMap.get(job.FinalDestinationCode),
+          commodityId: commodity
         },
         {
           where: { climaxId: job.Id },
@@ -3258,8 +3326,8 @@ routes.post("/uploadLogJobs", async (req, res) => {
 routes.post("/fixSalesRep", async (req, res) => {
   try{
     const jobs = await SE_Job.findAll()
-    console.log(jobs.length)
-    console.log(jobs[0]);
+    // console.log(jobs.length)
+    // console.log(jobs[0]);
     const JobsMap = new Map(
       jobs.map(j => [j.climaxId, j.id])
     )
