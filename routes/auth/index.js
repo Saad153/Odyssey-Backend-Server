@@ -19,6 +19,7 @@ const JWT_SECRET =
   'qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnm';
 
 const sessionManager = require('../../functions/sessionManager');
+const { createHistory, getClientIp } = require('../../functions/history');
 
 routes.post('/login', async (req, res) => {
   try {
@@ -73,7 +74,8 @@ routes.post('/login', async (req, res) => {
 
     // Record session then return token
     sessionManager.setSession(user.id, token);
-
+    const clientIp = getClientIp(req);
+    await createHistory(user.id, 'login', `User ${user.username} logged in.`, `IP: ${clientIp}`);
     return res.status(200).json({
       message: 'Success',
       token: 'BearerSplit' + token,
@@ -101,12 +103,13 @@ routes.get("/verifyLogin", (req, res) => {
 });
 
 // Logout clears the stored session for the authenticated user
-routes.post('/logout', (req, res) => {
+routes.post('/logout', async (req, res) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ message: 'Not authenticated' });
   }
 
   sessionManager.clearSession(req.user.id);
+  await createHistory(req.user.id, 'logout', `User ${req.user.username} logged out.`);
   return res.json({ message: 'Logged out' });
 });
 
