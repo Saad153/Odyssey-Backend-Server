@@ -281,6 +281,12 @@ routes.post("/addNote", async(req, res) => {
   }
 });
 
+const getFiscalYearSuffix = () => {
+  const now = moment();
+  const fyEndYear = now.month() < 6 ? now.year() : now.year() + 1; // month() is 0-indexed, 0-5 = Jan-Jun
+  return String(fyEndYear).slice(-2);
+};
+
 routes.post("/create", async(req, res) => {
 
   const createEquip = (list, id) => {
@@ -294,6 +300,7 @@ routes.post("/create", async(req, res) => {
     return result;
   }
   try {
+    const fySuffix = getFiscalYearSuffix();
 
     let data = req.body.data
     delete data.id
@@ -313,14 +320,17 @@ routes.post("/create", async(req, res) => {
         operation: data.operation,
         companyId: data.companyId.toString(),
         jobNo: {
-          [Op.like]: '%/26'
+          [Op.like]: `%/${fySuffix}`
         }
       }
     });
+
+    const nextJobId = check == null ? 1 : parseInt(check.jobId) + 1;
+
     const result = await SE_Job.create({
       ...data,
       jobId:check==null?1:parseInt(check.jobId)+1,
-      jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${check==null?1:parseInt(check.jobId)+1}/26`
+      jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${nextJobId}/${fySuffix}`
     }).catch((x)=>console.error(x.message))
     await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.error(x))
     createHistory(req.body.employeeId, 'Job', 'Create', result.jobNo);
