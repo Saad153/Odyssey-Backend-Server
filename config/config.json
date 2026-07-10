@@ -2,7 +2,7 @@
   "development": {
     "username": "postgres",
     "password": "abc.123",
-    "database": "odyssey",
+    "database": "odyssey-prod",
     "host": "127.0.0.1",
     "port": 5432,
     "dialect": "postgres"

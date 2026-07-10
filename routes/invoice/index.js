@@ -340,7 +340,10 @@ routes.get("/getAllInvoicesByPartyId", async (req, res) => {
           model: SE_Job,
           include: [
             { model: SE_Equipments, attributes: ["qty", "size"] },
-            { model: Bl, required: false, attributes: ["mbl", "hbl"] },
+            {
+              model: Bl, required: false, attributes: ["mbl", "hbl"],
+              include: [{ model: Container_Info, attributes: ["no"] }],
+            },
           ],
         },
       ],
