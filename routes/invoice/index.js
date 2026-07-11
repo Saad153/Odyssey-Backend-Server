@@ -482,8 +482,8 @@ routes.get("/deleteInvoice", async(req, res) => {
   try{
     const invoice = await Invoice.findOne({where:{id:req.headers.id}})
     await Charge_Head.update(
-      { invoice_id: null, status: 0 },
-      { where: { invoice_id: invoice.dataValues.invoice_No } }
+      { invoice_id: null, InvoiceId: null, status: 0 },
+      { where: { InvoiceId: invoice.dataValues.id } }
     );
     await Invoice.destroy({where:{id:req.headers.id}})
     res.json({status:'success'});
@@ -1083,7 +1083,12 @@ routes.post("/unApprove", async(req, res)=>{
       { approved: 0 },
       { where: { id: req.body.id } } // Replace someInvoiceId with the actual ID or condition
     );
-    
+
+    await Charge_Head.update(
+      { status: 0 },
+      { where: { InvoiceId: req.body.id } }
+    );
+
     const voucher = await Vouchers.findOne({
       where: {
         invoice_Id: req.body.id.toString()
