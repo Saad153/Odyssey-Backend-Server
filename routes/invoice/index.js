@@ -800,8 +800,8 @@ routes.get("/getAllInvoiceData", async(req, res) => {
 function getCurrentFiscalYearRange() {
   const now = new Date();
   const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1; // July = month 6
-  const start = new Date(year, 7, 1, 0, 0, 0);       // July 1, year
-  const end = new Date(year + 1, 6, 30, 23, 59, 59);  // June 30, year+1
+  const start = new Date(year, 6, 1, 0, 0, 0);       // July 1, year
+  const end = new Date(year + 1, 5, 30, 23, 59, 59);  // June 30, year+1
   return { start, end };
 }
 
