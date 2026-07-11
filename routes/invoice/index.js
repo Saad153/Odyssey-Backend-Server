@@ -24,56 +24,6 @@ const chardHeadLogic = (currency) => {
   return result;
 };
 
-routes.post("/approveCharges", async(req, res) => {
-  try {
-    let tempIds = [];
-    req.body.forEach((x) => { tempIds.push(x.InvoiceId) });
-
-    const lastJB = await Invoice.findOne({ where:{type:'Job Bill', invoice_Id:{[Op.ne]:null}}, order: [[ 'invoice_Id', 'DESC' ]], attributes:["invoice_Id"]});
-    const lastJI = await Invoice.findOne({ where:{type:'Job Invoice', invoice_Id:{[Op.ne]:null}}, order: [[ 'invoice_Id', 'DESC' ]], attributes:["invoice_Id"]});
-    const lastAI = await Invoice.findOne({ where:{type:'Agent Invoice', invoice_Id:{[Op.ne]:null}}, order: [[ 'invoice_Id', 'DESC' ]], attributes:["invoice_Id"]});
-    const lastAB = await Invoice.findOne({ where:{type:'Agent Bill', invoice_Id:{[Op.ne]:null}}, order: [[ 'invoice_Id', 'DESC' ]], attributes:["invoice_Id"]});
-
-    let result = await Invoice.findAll({where:{id:tempIds}});
-    let vouchers = [];
-    result.forEach(async(x, i) => {
-      if(x.status=='0' && x.type=='Job Bill'){
-        result[i].status="1"
-        result[i].invoice_Id= lastJB.invoice_Id==null?1: parseInt(lastJB.invoice_Id)+1;
-        result[i].invoice_No=lastJB.invoice_Id==null?
-        `SNS-JB-${1}/${moment().format("YY")}`:
-        `SNS-JB-${ parseInt(lastJB.invoice_Id)+1}/${moment().format("YY")}`
-      }
-      if(x.status=='0' && x.type=='Job Invoice'){
-        result[i].status="1"
-        result[i].invoice_Id= lastJI.invoice_Id==null?1: parseInt(lastJI.invoice_Id)+1;
-        result[i].invoice_No=lastJI.invoice_Id==null?
-        `SNS-JI-${1}/${moment().format("YY")}`:
-        `SNS-JI-${ parseInt(lastJI.invoice_Id)+1}/${moment().format("YY")}`
-      }
-      if(x.status=='0' && x.type=='Agent Invoice'){
-        result[i].status="1"
-        result[i].invoice_Id= lastAI.invoice_Id==null?1: parseInt(lastAI.invoice_Id)+1;
-        result[i].invoice_No=lastAI.invoice_Id==null?
-        `SNS-AI-${1}/${moment().format("YY")}`:
-        `SNS-AI-${ parseInt(lastAI.invoice_Id)+1}/${moment().format("YY")}`
-      }
-      if(x.status=='0' && x.type=='Agent Bill'){
-        result[i].status="1"
-        result[i].invoice_Id= lastAB.invoice_Id==null?1: parseInt(lastAB.invoice_Id)+1;
-        result[i].invoice_No=lastAB.invoice_Id==null?
-        `SNS-AB-${1}/${moment().format("YY")}`:
-        `SNS-AB-${ parseInt(lastAB.invoice_Id)+1}/${moment().format("YY")}`
-      }
-    })
-    
-    await res.json({status: 'success', result: result});
-  }
-  catch (error) {
-    res.json({status: 'error', result: error});
-  }
-});
-
 routes.post("/updateCharges", async(req, res) => {
   try {
     req.body.invoice.forEach(async(x)=>{
@@ -797,47 +747,31 @@ routes.get("/getAllInvoiceData", async(req, res) => {
   }
 })
 
-function getCurrentFiscalYearRange() {
-  const now = new Date();
-  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1; // July = month 6
-  const start = new Date(year, 6, 1, 0, 0, 0);       // July 1, year
-  const end = new Date(year + 1, 5, 30, 23, 59, 59);  // June 30, year+1
-  return { start, end };
-}
-
 // generate new invoice with invoice number (This API generates only invoice numbers)
 routes.post("/makeInvoiceNew", async(req, res) => {
   try {
-    const { start, end } = getCurrentFiscalYearRange();
-    const fyWhere = { createdAt: { [Op.between]: [start, end] } };
+    const company = req.body.companyId=='1'?"SNS":req.body.companyId=='2'?"CLS":"ACS";
+    // month() is 0-based: Jan = 0, July = 6
+    const invoiceYear = moment().month() >= 6 ? moment().add(1, 'years').format("YY"): moment().format("YY");
+
+    // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
+    // since createdAt on these rows is set to the job's ship/departure date, not real creation time.
+    const findLastInvoice = (type, init) => Invoice.findOne({
+      where: {
+        type,
+        invoice_No: { [Op.like]: `${company}-${init}-%/${invoiceYear}` },
+        invoice_Id: { [Op.ne]: null }
+      },
+      order: [['invoice_Id', 'DESC']],
+      attributes: ["id", "invoice_Id"],
+      include: [{ model: Charge_Head, attributes: ['id'] }]
+    });
+
     let result = req.body.chargeList, charges = [], createdInvoice = { };
-    const lastJB = await Invoice.findOne({
-      where: { type: 'Job Bill', invoice_Id: { [Op.ne]: null }, ...fyWhere },
-      order: [['invoice_Id', 'DESC']],
-      attributes: ["id", "invoice_Id"],
-      include: [{ model: Charge_Head, attributes: ['id'] }]
-    });
-
-    const lastJI = await Invoice.findOne({
-      where: { type: 'Job Invoice', invoice_Id: { [Op.ne]: null }, ...fyWhere },
-      order: [['invoice_Id', 'DESC']],
-      attributes: ["id", "invoice_Id"],
-      include: [{ model: Charge_Head, attributes: ['id'] }]
-    });
-
-    const lastAI = await Invoice.findOne({
-      where: { type: 'Agent Invoice', invoice_Id: { [Op.ne]: null }, ...fyWhere },
-      order: [['invoice_Id', 'DESC']],
-      attributes: ["id", "invoice_Id"],
-      include: [{ model: Charge_Head, attributes: ['id'] }]
-    });
-
-    const lastAB = await Invoice.findOne({
-      where: { type: 'Agent Bill', invoice_Id: { [Op.ne]: null }, ...fyWhere },
-      order: [['invoice_Id', 'DESC']],
-      attributes: ["id", "invoice_Id"],
-      include: [{ model: Charge_Head, attributes: ['id'] }]
-    });
+    const lastJB = await findLastInvoice('Job Bill', 'JB');
+    const lastJI = await findLastInvoice('Job Invoice', 'JI');
+    const lastAI = await findLastInvoice('Agent Invoice', 'AI');
+    const lastAB = await findLastInvoice('Agent Bill', 'AB');
 
     for(let x of result){
       if(x.invoiceType=="Job Bill"){
@@ -895,12 +829,14 @@ routes.post("/openingInvoice", async(req, res) => {
       });
     }
     const createdAt = moment(req.body.date).toDate();
-    const { start, end } = getCurrentFiscalYearRange();
-    const fyWhere = { createdAt: { [Op.between]: [start, end] } };
-    const lastOI = await Invoice.findOne({where:{type:'Opening Invoice', invoice_Id:{[Op.ne]:null}, ...fyWhere},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
-    const lastOB = await Invoice.findOne({where:{type:'Opening Bill', invoice_Id:{[Op.ne]:null}, ...fyWhere},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
+    const company = req.body.companyId=="1"?'SNS':"ACS";
+    const invoiceYear = moment().add(1, 'years').format("YY");
+    // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
+    // since createdAt here is the opening-balance date, not real creation time.
+    const lastOI = await Invoice.findOne({where:{type:'Opening Invoice', invoice_No:{[Op.like]:`${company}-OI-%/${invoiceYear}`}, invoice_Id:{[Op.ne]:null}},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
+    const lastOB = await Invoice.findOne({where:{type:'Opening Bill', invoice_No:{[Op.like]:`${company}-OB-%/${invoiceYear}`}, invoice_Id:{[Op.ne]:null}},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
     const invoice = {
-      invoice_No: `${req.body.companyId=="1"?'SNS':"ACS"}-${req.body.type}-${req.body.type=="OI"?lastOI!=null?lastOI.invoice_Id+1:1:lastOB!=null?lastOB.invoice_Id+1:1}/${moment().add(1, 'years').format("YY")}`,
+      invoice_No: `${company}-${req.body.type}-${req.body.type=="OI"?lastOI!=null?lastOI.invoice_Id+1:1:lastOB!=null?lastOB.invoice_Id+1:1}/${invoiceYear}`,
       invoice_Id: req.body.type=="OI"?lastOI!=null?lastOI.invoice_Id+1:1:lastOB!=null?lastOB.invoice_Id+1:1,
       type: req.body.type=="OI"?"Opening Invoice":"Opening Bill",
       status: "1",
