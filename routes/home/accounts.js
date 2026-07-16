@@ -19,7 +19,7 @@ routes.get(`/${url}/get`, async(req, res) => {
         },
         {
           model:Invoice,
-          where:{status:'1'},
+          where:{status:'1', approved:'0'},
           include:[
             {
               model:Charge_Head,
@@ -28,6 +28,8 @@ routes.get(`/${url}/get`, async(req, res) => {
           ],
         }
       ],
+      order:[['createdAt', 'DESC']],
+      limit:10,
     }).catch((x)=>console.error(x));
     res.json({status:'success', result:result});
   }

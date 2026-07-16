@@ -1,32 +1,26 @@
 const { Op } = require("sequelize");
 const routes = require('express').Router();
-const { Ports } = require("../../models/");
+const { Airports } = require("../../models/");
 const { createHistory } = require('../../functions/history');
 
-routes.post("/createPort", async (req, res) => {
+routes.post("/createAirport", async (req, res) => {
     try {
-        const { portId, portName, portCountry } = req.body;
-        if (!portId || !portName || !portCountry) {
+        const { airportCode, airportName, city, country } = req.body;
+        if (!airportCode || !airportName || !city || !country) {
             return res.json({ status: "error", result: "All fields are required" })
         }
-        let nameWithCode = `${portName} (${portId})`
-        const result = await Ports.create({
-            portId,
-            portName: nameWithCode,
-            portCountry
-        })
-        createHistory(req.body.employeeId, 'Ports', 'Create', result.portName);
+        const result = await Airports.create({ airportCode, airportName, city, country });
+        createHistory(req.body.employeeId, 'Airports', 'Create', result.airportName);
         return res.json({ status: "success", result: result })
-
     } catch (error) {
         console.log(error);
         res.json({ status: "error", result: error })
     }
 })
 
-routes.get("/viewPorts", async (req, res) => {
+routes.get("/viewAirports", async (req, res) => {
     try {
-        const result = await Ports.findAll();
+        const result = await Airports.findAll();
         return res.json({ status: "success", result: result })
     } catch (error) {
         return res.json({ status: "error", result: error })
@@ -41,16 +35,17 @@ routes.get("/get", async (req, res) => {
         const where = search
             ? {
                 [Op.or]: [
-                    { portId: { [Op.iLike]: `%${search}%` } },
-                    { portName: { [Op.iLike]: `%${search}%` } },
-                    { portCountry: { [Op.iLike]: `%${search}%` } },
+                    { airportCode: { [Op.iLike]: `%${search}%` } },
+                    { airportName: { [Op.iLike]: `%${search}%` } },
+                    { city: { [Op.iLike]: `%${search}%` } },
+                    { country: { [Op.iLike]: `%${search}%` } },
                 ],
             }
             : {};
 
-        const { count, rows } = await Ports.findAndCountAll({
+        const { count, rows } = await Airports.findAndCountAll({
             where,
-            order: [["portName", "ASC"]],
+            order: [["airportName", "ASC"]],
             limit: Number(limit),
             offset,
         });
@@ -71,20 +66,15 @@ routes.get("/get", async (req, res) => {
     }
 });
 
-routes.post("/updatePort", async (req, res) => {
+routes.post("/updateAirport", async (req, res) => {
     try {
-        const { id, portId, portName, portCountry } = req.body.data || req.body;
-        if (!id || !portId || !portName || !portCountry) {
+        const { id, airportCode, airportName, city, country } = req.body.data || req.body;
+        if (!id || !airportCode || !airportName || !city || !country) {
             return res.json({ status: "error", result: "All fields are required" })
         }
-        let nameWithCode = portName.includes(`(${portId})`) ? portName : `${portName} (${portId})`
-        await Ports.update({
-            portId,
-            portName: nameWithCode,
-            portCountry
-        }, { where: { id } });
-        const result = await Ports.findOne({ where: { id } });
-        createHistory(req.body.employeeId, 'Ports', 'Edit', result.portName);
+        await Airports.update({ airportCode, airportName, city, country }, { where: { id } });
+        const result = await Airports.findOne({ where: { id } });
+        createHistory(req.body.employeeId, 'Airports', 'Edit', result.airportName);
         return res.json({ status: "success", result: result })
     } catch (error) {
         console.log(error);
@@ -92,12 +82,12 @@ routes.post("/updatePort", async (req, res) => {
     }
 })
 
-routes.post("/deletePort", async (req, res) => {
+routes.post("/deleteAirport", async (req, res) => {
     try {
         const { id } = req.body;
-        const record = await Ports.findOne({ where: { id } });
-        await Ports.destroy({ where: { id } });
-        createHistory(req.body.employeeId, 'Ports', 'Delete', record?.portName);
+        const record = await Airports.findOne({ where: { id } });
+        await Airports.destroy({ where: { id } });
+        createHistory(req.body.employeeId, 'Airports', 'Delete', record?.airportName);
         return res.json({ status: "success", result: id })
     } catch (error) {
         console.log(error);

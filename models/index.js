@@ -34,17 +34,43 @@ Object.keys(db).forEach(modelName => {
   }
 });
 
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
+
+// IMPORTANT: assign module.exports before requiring the association files
+// below, and before calling sync(). The association files each do
+// require('../../models') themselves (a circular require back into this
+// same file) - Node resolves that to whatever module.exports currently is
+// at that moment, so it must already be the populated `db` object here,
+// not the empty {} this module started with.
+module.exports = db;
+
+// Many foreign key columns (SEJobId, ClientId, shipperId, CompanyId, etc.)
+// only get attached to a model's attributes as a side effect of these
+// association files running (hasMany/belongsTo calls mutate the target
+// model's rawAttributes). They must be loaded BEFORE sync() below runs,
+// because sync({alter:true}) doesn't just add missing columns - it also
+// DROPS columns that exist in the DB but aren't in the model's currently
+// known attributes, to force the schema to match. Any process that only
+// requires this file without these also being loaded would make sync()
+// think those association-only columns shouldn't exist, and delete them.
+require('../functions/Associations/jobAssociations/seaExport');
+require('../functions/Associations/clientAssociation');
+require('../functions/Associations/voucherAssociations');
+require('../functions/Associations/incoiceAssociations');
+require('../functions/Associations/NotificationAssociation');
+require('../functions/Associations/taskAssociation');
+require('../functions/Associations/vesselAssociations');
+
 // Sync models with the database to create tables
-sequelize.sync({ alter: true })  // alter: true will adjust the schema to match the models, without dropping tables
+// Exposed as db.syncPromise so anything requiring this module (scripts,
+// one-off tools) can `await` sync finishing instead of racing it - this
+// never rejects, so it doesn't change the existing fire-and-forget
+// behavior for the main server process.
+db.syncPromise = sequelize.sync({ alter: true })  // alter: true will adjust the schema to match the models, without dropping tables
   .then(() => {
     console.log("Database & tables created!");
   })
   .catch((err) => {
     console.error("Error syncing database: ", err);
   });
-
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-module.exports = db;

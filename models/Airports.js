@@ -1,20 +1,28 @@
 module.exports = (sequelize, DataTypes) => {
-    const Ports = sequelize.define("Ports", {
-        portId: {
+    const Airports = sequelize.define("Airports", {
+        airportCode: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            unique: true,
+            validate: {
+                notEmpty: true
+            }
+        },
+        airportName: {
             type: DataTypes.STRING,
             allowNull: false,
             validate: {
                 notEmpty: true
             }
         },
-        portName: {
+        city: {
             type: DataTypes.STRING,
             allowNull: false,
             validate: {
                 notEmpty: true
             }
         },
-        portCountry: {
+        country: {
             type: DataTypes.STRING,
             allowNull: false,
             validate: {
@@ -22,5 +30,5 @@ module.exports = (sequelize, DataTypes) => {
             }
         }
     })
-    return Ports
+    return Airports
 }

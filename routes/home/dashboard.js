@@ -9,23 +9,30 @@ const Op = Sequelize.Op;
 routes.get("/getDashboard", async(req, res) => {
 
   try {
-    const snsFcl = await SE_Job.count({where:{companyId:"1", subType:"FCL", approved:"true"}});
-    const snsLCL = await SE_Job.count({where:{companyId:"1", subType:"LCL", approved:"true"}});
-    const snsPending = await SE_Job.count({where:{companyId:"1", approved:"false"}});
-
-    const acsFcl = await SE_Job.count({where:{companyId:"3", subType:"FCL", approved:"true"}});
-    const acsLCL = await SE_Job.count({where:{companyId:"3", subType:"LCL", approved:"true"}});
-    const acsPending = await SE_Job.count({where:{companyId:"3", approved:"false"}});
-
     const lastWeek = `${moment().subtract(1, 'week' ).format("YYYY-MM-DD")}`
     const lastMonth =`${moment().subtract(1, 'month').format("YYYY-MM-DD")}`
     const lastYear = `${moment().subtract(1, 'year' ).format("YYYY-MM-DD")}`
+
+    // FCL/LCL are scoped to the last 12 months (same rolling window as
+    // yearCount/Receivable Sales below), so they read as recent activity
+    // rather than growing forever. Pending Approval stays all-time - it's a
+    // current backlog, not a period metric.
+    const snsFcl = await SE_Job.count({where:{companyId:"1", subType:"FCL", approved:"true", createdAt:{[Op.gte]:moment(lastYear).toDate()}}});
+    const snsLCL = await SE_Job.count({where:{companyId:"1", subType:"LCL", approved:"true", createdAt:{[Op.gte]:moment(lastYear).toDate()}}});
+    const snsPending = await SE_Job.count({where:{companyId:"1", approved:"false"}});
+
+    const acsFcl = await SE_Job.count({where:{companyId:"3", subType:"FCL", approved:"true", createdAt:{[Op.gte]:moment(lastYear).toDate()}}});
+    const acsLCL = await SE_Job.count({where:{companyId:"3", subType:"LCL", approved:"true", createdAt:{[Op.gte]:moment(lastYear).toDate()}}});
+    const acsPending = await SE_Job.count({where:{companyId:"3", approved:"false"}});
 
     const weekCount = await SE_Job.count({where:{createdAt:{[Op.gte]:moment(lastWeek).toDate()}}});
     const monthCount= await SE_Job.count({where:{createdAt:{[Op.gte]:moment(lastMonth).toDate()}}});
     const yearCount = await SE_Job.count({where:{createdAt:{[Op.gte]:moment(lastYear).toDate()}}});
 
-    const projSales = await Invoice.findAll({ where:{payType:'Recievable', approved:'1'}, attributes:['total']});
+    const projSales = await Invoice.findAll({
+      where:{payType:'Recievable', approved:'1', createdAt:{[Op.gte]:moment(lastYear).toDate()}},
+      attributes:['total', 'currency', 'ex_rate']
+    });
 
     res.json({
       status:'success', result:{
@@ -83,7 +90,7 @@ routes.get("/getCashFlowTwo", async(req, res) => {
           { type:'Job Payment' },
         ]
       },
-      attributes:['id', 'createdAt', 'type'],
+      attributes:['id', 'createdAt', 'type', 'currency', 'exRate'],
       include:[{
         model:Invoice_Transactions,
         attributes:['amount']

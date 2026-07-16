@@ -184,6 +184,8 @@ const vesselRoutes = require('./routes/vessel');
 const manifest = require('./routes/manifest');
 const authRoutes = require('./routes/auth/');
 const ports = require('./routes/ports');
+const destinations = require('./routes/destinations');
+const airports = require('./routes/airports');
 const verify = require('./functions/tokenVerification');
 
 /* -------------------- ASSOCIATIONS (SIDE EFFECTS) -------------------- */
@@ -245,6 +247,8 @@ app.use('/seaJob', seaJobRoutes);
 app.use('/tasks', assignedTasks);
 app.use('/manifest', manifest);
 app.use('/ports', ports);
+app.use('/destinations', destinations);
+app.use('/airports', airports);
 
 /* -------------------- ERROR HANDLER -------------------- */
 app.use((err, req, res, next) => {

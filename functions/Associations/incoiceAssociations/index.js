@@ -36,7 +36,7 @@ SE_Job.hasMany(Invoice, {
 Invoice.belongsTo(SE_Job);
 
 SE_Job.hasMany(Charge_Head, {
-    foriegnKey:{
+    foreignKey:{
         type: DataTypes.INTEGER,
         allowNull:false
     }
