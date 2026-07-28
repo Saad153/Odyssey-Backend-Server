@@ -22,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
             type:DataTypes.DATEONLY,
             allowNull: false,
         },
-        isActive:{
+        isLocked:{
             type:DataTypes.BOOLEAN,
             defaultValue: false,
         },

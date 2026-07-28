@@ -10,7 +10,7 @@ const { Employees } = require("../../functions/Associations/employeeAssociations
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require("../../functions/Associations/vesselAssociations");
 const { Commodity, Vessel, Charges, Invoice }=require("../../models");
-const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
+const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const moment = require("moment");
@@ -295,9 +295,10 @@ routes.post("/create", async(req, res) => {
     return result;
   }
   try {
-    const fySuffix = await getActiveFiscalYearSuffix();
-
     let data = req.body.data
+    const fiscalYear = await resolveSelectedFiscalYear(data.fiscalYearId);
+    const fySuffix = fiscalYear.suffix;
+
     delete data.id
     data.customCheck = data.customCheck.toString();
     data.transportCheck = data.transportCheck.toString();
@@ -325,7 +326,8 @@ routes.post("/create", async(req, res) => {
     const result = await SE_Job.create({
       ...data,
       jobId:check==null?1:parseInt(check.jobId)+1,
-      jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${nextJobId}/${fySuffix}`
+      jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${nextJobId}/${fySuffix}`,
+      FiscalYearId: fiscalYear.id
     })
     await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.error(x))
     createHistory(req.body.employeeId, 'Job', 'Create', result.jobNo);

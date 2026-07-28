@@ -9,6 +9,7 @@ const { Vouchers, Voucher_Heads } = require("../../functions/Associations/vouche
 const { Client_Associations, Clients } = require('../../functions/Associations/clientAssociation');
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info } = require("../../functions/Associations/jobAssociations/seaExport");
+const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const { createHistory } = require('../../functions/history');
 
 
@@ -1086,6 +1087,7 @@ routes.post("/createOpeningBalances", async(req, res) => {
   };
 
   try {
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
     const check = await Vouchers.findOne({
       order:[["voucher_No","DESC"]],
       attributes:["voucher_No"],
@@ -1105,8 +1107,9 @@ routes.post("/createOpeningBalances", async(req, res) => {
               "CLS" : "ACS"
           }-${req.body.vType}-${
           check == null ? 1 : parseInt(check.voucher_No) + 1
-          }/${moment().format("YY")
+          }/${fiscalYear.suffix
       }`,
+      FiscalYearId: fiscalYear.id,
     });
     let dataz = await setVoucherHeads(result.id, req.body.Voucher_Heads);
     await Voucher_Heads.bulkCreate(dataz);
@@ -1114,7 +1117,7 @@ routes.post("/createOpeningBalances", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error});
   }
 });
 

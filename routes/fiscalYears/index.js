@@ -2,7 +2,6 @@ const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const Op = Sequelize.Op;
 const { FiscalYears } = require('../../functions/Associations/fiscalYearAssociations');
-const { sequelize } = require('../../models');
 const requireDesignation = require('../../functions/requireDesignation');
 const { createHistory } = require('../../functions/history');
 
@@ -20,6 +19,23 @@ const overlapsExisting = async (startDate, endDate, excludeId) => {
     });
 };
 
+// Any logged-in user can see which fiscal years are open, to populate their
+// own "which fiscal year am I working in" picker - no designation gate.
+routes.get('/getSelectable', async (req, res) => {
+    try {
+        const result = await FiscalYears.findAll({
+            where: { isLocked: false },
+            order: [['startDate', 'DESC']],
+            attributes: ['id', 'label', 'suffix', 'startDate', 'endDate'],
+        });
+        res.json({ status: 'success', result });
+    } catch (error) {
+        console.error(error);
+        res.json({ status: 'error', result: error.message });
+    }
+});
+
+// Full list including locked ones, for the CEO/CFO/admin management page.
 routes.get('/getAll', CEO_CFO, async (req, res) => {
     try {
         const result = await FiscalYears.findAll({ order: [['startDate', 'DESC']] });
@@ -32,7 +48,7 @@ routes.get('/getAll', CEO_CFO, async (req, res) => {
 
 routes.post('/create', CEO_CFO, async (req, res) => {
     try {
-        const { label, suffix, startDate, endDate, isActive } = req.body;
+        const { label, suffix, startDate, endDate } = req.body;
         if (!label || !suffix || !startDate || !endDate) {
             return res.json({ status: 'error', result: 'label, suffix, startDate and endDate are required.' });
         }
@@ -44,15 +60,9 @@ routes.post('/create', CEO_CFO, async (req, res) => {
             return res.json({ status: 'error', result: `Overlaps existing fiscal year "${overlap.label}" (${overlap.startDate} to ${overlap.endDate}).` });
         }
 
-        const result = await sequelize.transaction(async (t) => {
-            if (isActive) {
-                await FiscalYears.update({ isActive: false }, { where: { isActive: true }, transaction: t });
-            }
-            return FiscalYears.create({
-                label, suffix, startDate, endDate,
-                isActive: !!isActive,
-                createdBy: req.user.id,
-            }, { transaction: t });
+        const result = await FiscalYears.create({
+            label, suffix, startDate, endDate,
+            createdBy: req.user.id,
         });
 
         createHistory(req.user.id, 'FiscalYear', 'Create', result.label);
@@ -65,7 +75,7 @@ routes.post('/create', CEO_CFO, async (req, res) => {
 
 routes.post('/edit', CEO_CFO, async (req, res) => {
     try {
-        const { id, label, suffix, startDate, endDate, isActive } = req.body;
+        const { id, label, suffix, startDate, endDate } = req.body;
         const fy = await FiscalYears.findOne({ where: { id } });
         if (!fy) return res.json({ status: 'error', result: 'Fiscal year not found.' });
 
@@ -79,12 +89,7 @@ routes.post('/edit', CEO_CFO, async (req, res) => {
             }
         }
 
-        await sequelize.transaction(async (t) => {
-            if (isActive) {
-                await FiscalYears.update({ isActive: false }, { where: { isActive: true, id: { [Op.ne]: id } }, transaction: t });
-            }
-            await FiscalYears.update({ label, suffix, startDate, endDate, isActive }, { where: { id }, transaction: t });
-        });
+        await FiscalYears.update({ label, suffix, startDate, endDate }, { where: { id } });
 
         createHistory(req.user.id, 'FiscalYear', 'Edit', label || fy.label);
         res.json({ status: 'success' });
@@ -94,17 +99,29 @@ routes.post('/edit', CEO_CFO, async (req, res) => {
     }
 });
 
-routes.post('/activate', CEO_CFO, async (req, res) => {
+routes.post('/lock', CEO_CFO, async (req, res) => {
     try {
         const fy = await FiscalYears.findOne({ where: { id: req.body.id } });
         if (!fy) return res.json({ status: 'error', result: 'Fiscal year not found.' });
 
-        await sequelize.transaction(async (t) => {
-            await FiscalYears.update({ isActive: false }, { where: { isActive: true }, transaction: t });
-            await FiscalYears.update({ isActive: true }, { where: { id: req.body.id }, transaction: t });
-        });
+        await FiscalYears.update({ isLocked: true }, { where: { id: req.body.id } });
 
-        createHistory(req.user.id, 'FiscalYear', 'Activate', fy.label);
+        createHistory(req.user.id, 'FiscalYear', 'Lock', fy.label);
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error(error);
+        res.json({ status: 'error', result: error.message });
+    }
+});
+
+routes.post('/unlock', CEO_CFO, async (req, res) => {
+    try {
+        const fy = await FiscalYears.findOne({ where: { id: req.body.id } });
+        if (!fy) return res.json({ status: 'error', result: 'Fiscal year not found.' });
+
+        await FiscalYears.update({ isLocked: false }, { where: { id: req.body.id } });
+
+        createHistory(req.user.id, 'FiscalYear', 'Unlock', fy.label);
         res.json({ status: 'success' });
     } catch (error) {
         console.error(error);
@@ -114,6 +131,6 @@ routes.post('/activate', CEO_CFO, async (req, res) => {
 
 // Fiscal years are permanent records once created (accounting periods should
 // never disappear from history) - intentionally no /delete route. They can
-// only be created, edited, and activated.
+// only be created, edited, locked, and unlocked.
 
 module.exports = routes;

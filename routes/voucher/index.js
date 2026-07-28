@@ -1,5 +1,5 @@
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
-const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
+const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../functions/Associations/jobAssociations/seaExport");
 const routes = require("express").Router();
@@ -159,6 +159,7 @@ routes.get("/getAllVoucehrHeads", async (req, res) => {
 routes.post("/voucherCreation", async (req, res) => {
   try {
     console.log("Request Body:",req.body)
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
     const check = await Vouchers.findOne({
       order: [["voucher_No", "DESC"]],
       attributes: ["voucher_No"],
@@ -170,7 +171,8 @@ routes.post("/voucherCreation", async (req, res) => {
         voucher_Id: !req.body.voucher_Id?`${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"
         }-${req.body.vType
         }-${check == null ? 1 : parseInt(check.voucher_No) + 1
-        }/${await getActiveFiscalYearSuffix()}`:req.body.voucher_Id,
+        }/${fiscalYear.suffix}`:req.body.voucher_Id,
+        FiscalYearId: fiscalYear.id,
       }).catch();
       let dataz = await setVoucherHeads(result.id, req.body.Voucher_Heads, req.body.currency);
       const VH = await Voucher_Heads.bulkCreate(dataz);
@@ -186,6 +188,7 @@ routes.post("/cheaqueReturned", async (req, res) => {
   try {
     const data = req.body
     const {VoucherId, InvoiceId} = data;
+    const fiscalYear = await resolveSelectedFiscalYear(data.fiscalYearId);
 
    const found = await Vouchers.findOne({
       order: [["voucher_No", "DESC"]],
@@ -202,7 +205,7 @@ routes.post("/cheaqueReturned", async (req, res) => {
     const voucher_Data = {
       CompanyId, costCenter, currency, exRate, voucher_No, voucher_Id: vId,
       vType: vtype, type, subType, partyType, partyName, partyId, onAccount,
-      invoices, tranDate
+      invoices, tranDate, FiscalYearId: fiscalYear.id
     };
     const voucher_created = await Vouchers.create(voucher_Data);
     const vData = {...data, VoucherId: voucher_created.id }
@@ -1134,6 +1137,13 @@ routes.post("/makeTransaction", async (req, res) => {
     });
   }
 
+  let fiscalYear;
+  try {
+    fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
+  } catch (e) {
+    return res.json({ status: 'error', result: e.message });
+  }
+
   const t = await sequelize.transaction();
 
   try {
@@ -1279,11 +1289,12 @@ routes.post("/makeTransaction", async (req, res) => {
       });
 
       v.voucher_No = lastVoucher ? lastVoucher.voucher_No + 1 : 1;
-      const yearSuffix = await getActiveFiscalYearSuffix();
+      const yearSuffix = fiscalYear.suffix;
 
       v.voucher_Id = `${
         v.CompanyId === 1 ? "SNS" : v.CompanyId === 2 ? "CLS" : "ACS"
       }-${v.vType}-${v.voucher_No}/${yearSuffix}`;
+      v.FiscalYearId = fiscalYear.id;
 
       vouchers = await Vouchers.create(v, { transaction: t });
       vID = vouchers.id;
@@ -1379,6 +1390,7 @@ routes.post("/createVoucher", async(req, res) => {
         result: `Voucher is unbalanced: total debit ${balance.totalDebit.toFixed(2)} does not equal total credit ${balance.totalCredit.toFixed(2)}`,
       });
     }
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
     const lastVoucher = await Vouchers.findOne({
       where: {
         vType: req.body.vType,
@@ -1388,11 +1400,12 @@ routes.post("/createVoucher", async(req, res) => {
     })
     if(lastVoucher==null){
       req.body.voucher_No = 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${await getActiveFiscalYearSuffix()}`
+      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${fiscalYear.suffix}`
     }else{
       req.body.voucher_No = lastVoucher.voucher_No + 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${await getActiveFiscalYearSuffix()}`
+      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${fiscalYear.suffix}`
     }
+    req.body.FiscalYearId = fiscalYear.id
     const result = await Vouchers.create(req.body)
     for(let x of voucher_Heads){
       x.VoucherId = result.id
@@ -2295,6 +2308,8 @@ routes.post("/saveDirectJob", async (req, res) => {
       } else {
         // 🔹 CREATE
 
+        const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId, t);
+
         // Generate Entry_No
         const jobNumber = await Direct_Job.findOne({
           where: { Type: direct_Job.Type },
@@ -2303,7 +2318,7 @@ routes.post("/saveDirectJob", async (req, res) => {
           transaction: t
         });
 
-        direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${await getActiveFiscalYearSuffix()}`;
+        direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${fiscalYear.suffix}`;
 
         dJob = await Direct_Job.create(direct_Job, { transaction: t });
 
@@ -2324,7 +2339,7 @@ routes.post("/saveDirectJob", async (req, res) => {
 
         Voucher = await Vouchers.create({
           voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
-          voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${await getActiveFiscalYearSuffix()}`,
+          voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${fiscalYear.suffix}`,
           type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
           vType: vouchervType,
           currency: direct_Job.Currency,
@@ -2341,6 +2356,7 @@ routes.post("/saveDirectJob", async (req, res) => {
           tranDate: direct_Job.Entry_Date,
           createdBy: direct_Job.Add_By,
           CompanyId: direct_Job.companyId,
+          FiscalYearId: fiscalYear.id,
         }, { transaction: t });
       }
 
@@ -2408,6 +2424,7 @@ routes.post("/createDirectJob", async (req, res) => {
     await sequelize.transaction(async (t) => {
 
       const { direct_Job, direct_Job_Association } = req.body;
+      const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId, t);
 
       const jobNumber = await Direct_Job.findOne({
         where: { Type: 'revenue' },
@@ -2416,7 +2433,7 @@ routes.post("/createDirectJob", async (req, res) => {
       });
 
       // 1️⃣ Create Direct Job
-      direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${await getActiveFiscalYearSuffix()}`
+      direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${fiscalYear.suffix}`
       dJob = await Direct_Job.create(direct_Job, { transaction: t });
       
       let vouchervType
@@ -2438,7 +2455,7 @@ routes.post("/createDirectJob", async (req, res) => {
 
       Voucher = await Vouchers.create({
         voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
-        voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${await getActiveFiscalYearSuffix()}`,
+        voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${fiscalYear.suffix}`,
         type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
         vType: vouchervType,
         currency: direct_Job.Currency,
@@ -2454,7 +2471,8 @@ routes.post("/createDirectJob", async (req, res) => {
         partyType: direct_Job.Type == 'revenue' ? 'client' : 'vendor',
         tranDate: direct_Job.Entry_Date,
         createdBy: direct_Job.Add_By,
-        CompanyId: direct_Job.companyId
+        CompanyId: direct_Job.companyId,
+        FiscalYearId: fiscalYear.id,
       }, { transaction: t });
 
       let amount = 0

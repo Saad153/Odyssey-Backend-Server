@@ -3,7 +3,7 @@ const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../f
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
-const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
+const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
@@ -53,6 +53,7 @@ routes.post("/saveHeades", async(req, res) => {
     return result
   }
   try {
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
     await Charge_Head.destroy({where:{id:req.body.deleteList}})
     let tempData = [...req.body.invoices];
     const prevInv = await Invoice.findAll({where:{SEJobId:req.body.invoices[0].SEJobId}});
@@ -72,7 +73,7 @@ routes.post("/saveHeades", async(req, res) => {
     req.body.invoices = tempData;
     for(let i = 0; i<req.body.invoices.length;i++){
       if(req.body.invoices[i].id==null){
-        const result = await Invoice.create(req.body.invoices[i]);
+        const result = await Invoice.create({ ...req.body.invoices[i], FiscalYearId: fiscalYear.id });
         await Charge_Head.bulkCreate(makeHeads(req.body.invoices[i].charges, result.id))
         createHistory(req.body.employeeId, 'Invoice', 'Create', result.invoice_No);
       }
@@ -653,7 +654,7 @@ routes.get("/getHeadesNew", async(req, res) => {
 });
 
 // This function is used in the API below helps to set invoice number according to the last generated invoice with fiscal year
-const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
+const createInvoices = async (lastJB, init, type, companyId, operation, x, fiscalYear) => {
   try{
     let company = '';
     let inVoiceDeleteList = []
@@ -667,7 +668,7 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
     }
     let addition = lastJB?.Charge_Heads?.length==0?0:1;
     company = companyId=='1'?"SNS":companyId=='2'?"CLS":"ACS";
-    const invoiceYear = await getActiveFiscalYearSuffix();
+    const invoiceYear = fiscalYear.suffix;
     let result = {
       invoice_No:(lastJB == null || lastJB.invoice_Id == null)? `${company}-${init}-1/${invoiceYear}`: `${company}-${init}-${Number(lastJB.invoice_Id) + Number(addition)}/${invoiceYear}`,
       invoice_Id: (lastJB==null || lastJB.invoice_Id==null)?1: parseInt(lastJB.invoice_Id)+parseInt(addition),
@@ -682,13 +683,14 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
       currency:(init=="JB"||init=="JI")?'PKR':x.currency,
       ex_rate:x.ex_rate,
       partyType:x.partyType,
+      FiscalYearId: fiscalYear.id,
     }
     Invoice.destroy({where:{id:inVoiceDeleteList}})
     return result;
   }catch(e){
     console.error(e)
   }
-  
+
 };
 
 routes.get("/getAllInvoiceData", async(req, res) => {
@@ -751,7 +753,8 @@ routes.get("/getAllInvoiceData", async(req, res) => {
 routes.post("/makeInvoiceNew", async(req, res) => {
   try {
     const company = req.body.companyId=='1'?"SNS":req.body.companyId=='2'?"CLS":"ACS";
-    const invoiceYear = await getActiveFiscalYearSuffix();
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
+    const invoiceYear = fiscalYear.suffix;
 
     // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
     // since createdAt on these rows is set to the job's ship/departure date, not real creation time.
@@ -775,25 +778,25 @@ routes.post("/makeInvoiceNew", async(req, res) => {
     for(let x of result){
       if(x.invoiceType=="Job Bill"){
         if(Object.keys(createdInvoice).length==0){
-          createdInvoice = await createInvoices(lastJB, "JB", "Job Bill", req.body.companyId, req.body.type, x)
+          createdInvoice = await createInvoices(lastJB, "JB", "Job Bill", req.body.companyId, req.body.type, x, fiscalYear)
         }
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
       if(x.invoiceType=="Job Invoice"){
         if(Object.keys(createdInvoice).length==0){
-          createdInvoice = await createInvoices(lastJI, "JI", "Job Invoice", req.body.companyId,req.body.type, x)
+          createdInvoice = await createInvoices(lastJI, "JI", "Job Invoice", req.body.companyId,req.body.type, x, fiscalYear)
         }
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
       if(x.invoiceType=="Agent Invoice"){
         if(Object.keys(createdInvoice).length==0){
-          createdInvoice = await createInvoices(lastAI, "AI", "Agent Invoice", req.body.companyId,req.body.type, x)
+          createdInvoice = await createInvoices(lastAI, "AI", "Agent Invoice", req.body.companyId,req.body.type, x, fiscalYear)
         }
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
       if(x.invoiceType=="Agent Bill"){
         if(Object.keys(createdInvoice).length==0){
-          createdInvoice = await createInvoices(lastAB, "AB", "Agent Bill", req.body.companyId , req.body.type , x)
+          createdInvoice = await createInvoices(lastAB, "AB", "Agent Bill", req.body.companyId , req.body.type , x, fiscalYear)
         }
         charges.push({...x, status:"1", invoice_id:createdInvoice.invoice_No })
       }
@@ -829,7 +832,8 @@ routes.post("/openingInvoice", async(req, res) => {
     }
     const createdAt = moment(req.body.date).toDate();
     const company = req.body.companyId=="1"?'SNS':"ACS";
-    const invoiceYear = await getActiveFiscalYearSuffix();
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
+    const invoiceYear = fiscalYear.suffix;
     // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
     // since createdAt here is the opening-balance date, not real creation time.
     const lastOI = await Invoice.findOne({where:{type:'Opening Invoice', invoice_No:{[Op.like]:`${company}-OI-%/${invoiceYear}`}, invoice_Id:{[Op.ne]:null}},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
@@ -853,7 +857,8 @@ routes.post("/openingInvoice", async(req, res) => {
       createdAt: createdAt,
       SE_JobId: null,
       payType: req.body.payType,
-      partyType: req.body.partyType
+      partyType: req.body.partyType,
+      FiscalYearId: fiscalYear.id,
     }
     const invoices = await Invoice.create(invoice);
 
@@ -886,6 +891,7 @@ routes.post("/openingInvoice", async(req, res) => {
     const voucher = await Vouchers.create({
       ...vouchers, // Spread your `vouchers` object
       updatedAt: invoices.dataValues.createdAt, // Explicitly set updatedAt to createdAt
+      FiscalYearId: fiscalYear.id,
     });
     let Voucher_Head = []
     let narration = `${req.body.type=="OI"?"Opening Invoice":"Opening Bill"} ${invoices.dataValues.invoice_No} From ${invoices.dataValues.party_Name}`
@@ -1048,6 +1054,7 @@ routes.post("/unApprove", async(req, res)=>{
 
 routes.post("/approve", async(req, res) => {
   try{
+    const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
     const chargesHeads = await Charge_Head.findAll({
       where:{InvoiceId:req.body.id}
     })
@@ -1140,7 +1147,8 @@ routes.post("/approve", async(req, res) => {
       voucher_Id: `${invoice.dataValues.companyId == 1 ? "SNS" : invoice.dataValues.companyId == 2 ? "CLS" : "ACS"}
       -${vouchers.vType}
       -${check == null ? 1 : parseInt(check.voucher_No) + 1}
-      /${await getActiveFiscalYearSuffix()}`
+      /${fiscalYear.suffix}`,
+      FiscalYearId: fiscalYear.id,
     })
 
     let Voucher_Head = []
