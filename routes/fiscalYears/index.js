@@ -35,8 +35,11 @@ routes.get('/getSelectable', async (req, res) => {
     }
 });
 
-// Full list including locked ones, for the CEO/CFO/admin management page.
-routes.get('/getAll', CEO_CFO, async (req, res) => {
+// Full list including locked ones. Open to any logged-in user - the Fiscal
+// Years page itself is visible to everyone (any user selects their own
+// working fiscal year there), it's only the create/edit/lock/unlock
+// actions that stay restricted to CEO/CFO/admin.
+routes.get('/getAll', async (req, res) => {
     try {
         const result = await FiscalYears.findAll({ order: [['startDate', 'DESC']] });
         res.json({ status: 'success', result });
