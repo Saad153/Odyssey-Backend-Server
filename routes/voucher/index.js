@@ -28,6 +28,29 @@ const e = require("express");
 // Expenses Payment
 // Office_Vouchers
 
+// Double-entry sanity check: a voucher's Voucher_Heads must always net to
+// zero (total debit == total credit). Amounts are stored as strings and
+// can in principle carry a stray sign, so this is the backstop that keeps
+// a mistyped negative amount from ever reaching the trial balance.
+const getVoucherBalance = (heads) => {
+  let totalDebit = 0;
+  let totalCredit = 0;
+  (heads || []).forEach((x) => {
+    const amount = parseFloat(x.amount) || 0;
+    const type = (x.type || "").trim().toLowerCase();
+    if (type === "credit") {
+      totalCredit += amount;
+    } else {
+      totalDebit += amount;
+    }
+  });
+  return {
+    totalDebit,
+    totalCredit,
+    balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+  };
+};
+
 const setVoucherHeads = (id, heads, curr) => {
   let result = [];
   heads.forEach((x) => {
@@ -1100,6 +1123,16 @@ routes.post("/deletePaymentReceipt", async(req, res) => {
 // });
 
 routes.post("/makeTransaction", async (req, res) => {
+  const transactionLines = (req.body.transactions || []).filter((x) => x.accountName !== "Total");
+  const totalDebit = transactionLines.reduce((sum, x) => sum + (parseFloat(x.debit) || 0), 0);
+  const totalCredit = transactionLines.reduce((sum, x) => sum + (parseFloat(x.credit) || 0), 0);
+  if (Math.abs(totalDebit - totalCredit) >= 0.01) {
+    return res.json({
+      status: 'error',
+      result: `Transaction is unbalanced: total debit ${totalDebit.toFixed(2)} does not equal total credit ${totalCredit.toFixed(2)}`,
+    });
+  }
+
   const t = await sequelize.transaction();
 
   try {
@@ -1341,6 +1374,13 @@ routes.post("/createVoucher", async(req, res) => {
   try{
     // console.log("Create Voucher>>", req.body)
     let voucher_Heads = req.body.Voucher_Heads
+    const balance = getVoucherBalance(voucher_Heads);
+    if (!balance.balanced) {
+      return res.json({
+        status: 'error',
+        result: `Voucher is unbalanced: total debit ${balance.totalDebit.toFixed(2)} does not equal total credit ${balance.totalCredit.toFixed(2)}`,
+      });
+    }
     const lastVoucher = await Vouchers.findOne({
       where: {
         vType: req.body.vType,
@@ -1371,6 +1411,14 @@ routes.post("/createVoucher", async(req, res) => {
 routes.post("/updateVoucher", async (req, res) => {
   try {
     const { id: voucherId } = req.body;
+
+    const balance = getVoucherBalance(req.body.Voucher_Heads);
+    if (!balance.balanced) {
+      return res.json({
+        status: 'error',
+        result: `Voucher is unbalanced: total debit ${balance.totalDebit.toFixed(2)} does not equal total credit ${balance.totalCredit.toFixed(2)}`,
+      });
+    }
 
     const result = await Vouchers.upsert(req.body);
 
