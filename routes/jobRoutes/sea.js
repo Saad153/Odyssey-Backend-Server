@@ -10,6 +10,7 @@ const { Employees } = require("../../functions/Associations/employeeAssociations
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require("../../functions/Associations/vesselAssociations");
 const { Commodity, Vessel, Charges, Invoice }=require("../../models");
+const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const moment = require("moment");
@@ -225,7 +226,7 @@ routes.get("/getValues", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -240,7 +241,7 @@ routes.post("/getNotes", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -253,7 +254,7 @@ routes.get("/getAllNotes", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -277,15 +278,9 @@ routes.post("/addNote", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
-
-const getFiscalYearSuffix = () => {
-  const now = moment();
-  const fyEndYear = now.month() < 6 ? now.year() : now.year() + 1; // month() is 0-indexed, 0-5 = Jan-Jun
-  return String(fyEndYear).slice(-2);
-};
 
 routes.post("/create", async(req, res) => {
 
@@ -300,7 +295,7 @@ routes.post("/create", async(req, res) => {
     return result;
   }
   try {
-    const fySuffix = getFiscalYearSuffix();
+    const fySuffix = await getActiveFiscalYearSuffix();
 
     let data = req.body.data
     delete data.id
@@ -331,14 +326,14 @@ routes.post("/create", async(req, res) => {
       ...data,
       jobId:check==null?1:parseInt(check.jobId)+1,
       jobNo:`${data.companyId=="1"?"SNS":data.companyId=="2"?"CLS":"ACS"}-${data.operation}${data.operation=="SE"?"J":data.operation=="SI"?"J":""}-${nextJobId}/${fySuffix}`
-    }).catch((x)=>console.error(x.message))
+    })
     await SE_Equipments.bulkCreate(createEquip(data.equipments,  result.id)).catch((x)=>console.error(x))
     createHistory(req.body.employeeId, 'Job', 'Create', result.jobNo);
     res.json({status:'success', result:await getJob(result.id)});
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result:error.message || error});
   }
 });
 
@@ -543,7 +538,7 @@ routes.get("/getJobById", async(req, res) => {
         res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -555,7 +550,7 @@ routes.get("/getSEJobIds", async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -577,7 +572,7 @@ routes.get("/getSEJobById", async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -620,7 +615,7 @@ routes.get("/getJobsWithoutBl", async(req, res) => {
   res.json({status:'success', result:result});
   }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -691,7 +686,7 @@ routes.get("/getJobsWithoutBl", async(req, res) => {
 //   }
 //   catch (error) {
 //     console.error(error)
-//     res.json({status:'error', result:error});
+//     res.json({status:'error', result: error.message || error });
 //   }
 // });
 
@@ -800,7 +795,7 @@ routes.post("/createBl", async (req, res) => {
 
   } catch (error) {
     console.error(error);
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -874,7 +869,7 @@ routes.post("/createBl", async (req, res) => {
 //     res.json({status:'success', result: result});   
 //   } 
 //   catch (error) {
-//     res.json({status:'error', result:error});  
+//     res.json({status:'error', result: error.message || error });  
 //   } 
 // }); 
 
@@ -1021,7 +1016,7 @@ routes.post("/editBl", async (req, res) => {
 
   } catch (error) {
     console.error(error);
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1058,7 +1053,7 @@ routes.post("/findJobByNo", async(req, res) => {
     res.json({status:'success', result:result});
   }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -1073,7 +1068,7 @@ routes.get("/getAllBls", async(req, res) => {
       res.json({status:'success', result:result});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -1095,7 +1090,7 @@ routes.get("/getBlById", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -1108,7 +1103,7 @@ routes.get("/getStamps", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 }); 
 
@@ -1119,18 +1114,18 @@ routes.post("/deleteJob", async(req, res) => {
         SEJobId: req.body.id
       }
     })
-    const res = await SE_Job.findOne({
+    const job = await SE_Job.findOne({
       where:{id:req.body.id}
     })
     const result = await SE_Job.destroy({
       where:{id:req.body.id},
     });
-    createHistory(req.body.employeeId, 'Job', 'Delete', res.jobNo);
+    createHistory(req.body.employeeId, 'Job', 'Delete', job.jobNo);
     res.json({status:'success', result:result});
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 }); 
 
@@ -1143,7 +1138,7 @@ routes.get("/getLoadingProgram", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 }); 
 
@@ -1156,7 +1151,7 @@ routes.post("/upsertLoadingProgram", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 }); 
 
@@ -1359,7 +1354,7 @@ routes.get("/getValuesJobList", async (req, res) => {
     });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1372,7 +1367,7 @@ routes.get("/getDeliveryOrder", async(req, res) => {
   }
   catch (error) {
     console.error(error);
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 }); 
 
@@ -1598,7 +1593,7 @@ routes.post("/UploadSEJobs", async (req, res) => {
         climaxId: job.Id,
       }
 
-      const savedJob = await SE_Job.create(j)
+      const savedJob = await SE_Job.create(j, { fiscalYearCheck: false })
 
       jobs.push(j)
 
@@ -1918,7 +1913,7 @@ routes.post("/UploadSIJobs", async (req, res) => {
         climaxId: job.Id,
       }
 
-      const savedJob = await SE_Job.create(j)
+      const savedJob = await SE_Job.create(j, { fiscalYearCheck: false })
 
       jobs.push(j)
 
@@ -2171,7 +2166,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
         climaxId: i.Id
       }
       if(!savedInvoice){
-        savedInvoice = await Invoice.create(inv, { silent: true })
+        savedInvoice = await Invoice.create(inv, { silent: true, fiscalYearCheck: false })
       }
 
       if(!invoice){
@@ -2217,7 +2212,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           CompanyId: companyId,
           invoice_Id: savedInvoice.id,
           climaxId: i.GL_Voucher.Id
-        }, { silent: true });
+        }, { silent: true, fiscalYearCheck: false });
   
         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
           !vh.Id
@@ -2311,7 +2306,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
         climaxId: i.Id
       }
       if(!savedInvoice){
-        savedInvoice = await Invoice.create(inv)
+        savedInvoice = await Invoice.create(inv, { fiscalYearCheck: false })
       }
 
       if(!invoice){
@@ -2356,7 +2351,7 @@ const UploadChargesPayb = async (Charge, job, savedJob, accountMap, companyId) =
           CompanyId: companyId,
           invoice_Id: savedInvoice.id,
           climaxId: i.GL_Voucher.Id
-        }, { silent: true });
+        }, { silent: true, fiscalYearCheck: false });
   
         for(let vh of i.GL_Voucher.GL_Voucher_Detail){
           !vh.Id
@@ -2502,7 +2497,7 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
         climaxId: i.Id
       };
       if (!savedInvoice) {
-        savedInvoice = await Invoice.create(inv, { silent: true });
+        savedInvoice = await Invoice.create(inv, { silent: true, fiscalYearCheck: false });
       }
 
       if (!invoice) {
@@ -2544,7 +2539,7 @@ const UploadChargesRecv = async (Charge, job, savedJob, accountMap, companyId) =
           CompanyId: companyId,
           invoice_Id: savedInvoice.id,
           climaxId: i.GL_Voucher.Id
-        }, { silent: true });
+        }, { silent: true, fiscalYearCheck: false });
   
         for (let vh of i.GL_Voucher.GL_Voucher_Detail) {
           !vh.Id
@@ -2662,13 +2657,13 @@ routes.post("/UploadAEJobs", async (req, res) => {
         flightNo: job.FlightNo,
       }
 
-      const savedJob = await SE_Job.create(j)
+      const savedJob = await SE_Job.create(j, { fiscalYearCheck: false })
 
       jobs.push(j)
       if(job.SExp_BL){
-        
+
         let bl = job.SExp_BL
-  
+
         let BL = {
           operation: "AE",
           hbl: bl.HAWBNo,
@@ -2865,13 +2860,13 @@ routes.post("/UploadAIJobs", async (req, res) => {
         flightNo: job.FlightNo,
       }
 
-      const savedJob = await SE_Job.create(j)
+      const savedJob = await SE_Job.create(j, { fiscalYearCheck: false })
 
       jobs.push(j)
       if(job.SExp_BL){
-        
+
         let bl = job.SExp_BL
-  
+
         let BL = {
           operation: "AI",
           hbl: bl.HAWBNo,
@@ -3325,7 +3320,7 @@ routes.post("/fixAEBL", async ( req, res ) => {
 
 routes.post("/uploadLogJobs", async (req, res) => {
   try{
-    await SE_Job.bulkCreate(req.body)
+    await SE_Job.bulkCreate(req.body, { fiscalYearCheck: false })
     res.status(200).json({ status: 'success' })
   }catch(e){
     console.error(e)

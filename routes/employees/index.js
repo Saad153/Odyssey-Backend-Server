@@ -5,6 +5,9 @@ const { Access_Levels, Employees } = require("../../functions/Associations/emplo
 const { sequelize } = require('../../models');
 const History = require('../../models/History');
 const { createHistory } = require('../../functions/history');
+const requireDesignation = require('../../functions/requireDesignation');
+
+const CEO_CFO_ADMIN = requireDesignation(['CEO', 'CFO', 'admin']);
 
 function getAccessLevels(levels, id){
     let levelsList = [];
@@ -14,7 +17,7 @@ function getAccessLevels(levels, id){
     return levelsList
 }
 
-routes.post("/createEmployee", async(req, res) => {
+routes.post("/createEmployee", CEO_CFO_ADMIN, async(req, res) => {
     try {
         const result = await Employees.findOne({
             where: {
@@ -59,7 +62,7 @@ routes.post("/createEmployee", async(req, res) => {
     }
 });
 
-routes.post("/editEmployee", async(req, res) => {
+routes.post("/editEmployee", CEO_CFO_ADMIN, async(req, res) => {
     try {
         await Access_Levels.destroy({where:{EmployeeId:req.body.values.id}})
         const result = await Employees.update({
@@ -93,7 +96,7 @@ routes.post("/editEmployee", async(req, res) => {
     }
 });
 
-routes.get("/getEmployees", async(req, res) => {
+routes.get("/getEmployees", CEO_CFO_ADMIN, async(req, res) => {
     try {
 
         const result = await Employees.findAll({

@@ -3,6 +3,7 @@ const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../f
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Access_Levels, Employees } = require("../../functions/Associations/employeeAssociations");
 const { Vouchers, Voucher_Heads } = require("../../functions/Associations/voucherAssociations");
+const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
@@ -38,7 +39,7 @@ routes.post("/updateCharges", async(req, res) => {
     await res.json({status: 'success', result: 'result'});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 }); 
 
@@ -92,7 +93,7 @@ routes.post("/saveHeades", async(req, res) => {
     res.json({status:'success'});
   }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -108,7 +109,7 @@ routes.get("/getJobInvoices", async(req, res) => {
     }
     catch (error) {
       console.error(error)
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -129,7 +130,7 @@ routes.get("/getFilteredInvoices", async(req, res) => {
     res.json({status:'success', result:result});
   } catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -175,7 +176,7 @@ routes.get("/getInvoiceByNo", async(req, res) => {
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -220,7 +221,7 @@ routes.get("/getInvoiceById", async(req, res) => {
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
       console.error(error)
     }
 });
@@ -241,7 +242,7 @@ routes.get("/testResetSomeInvoices", async(req, res) => {
     res.json({ status:'success', result:result });
   } catch (error) {
 
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -342,7 +343,7 @@ routes.get("/getAllInvoicesByPartyId", async (req, res) => {
     return res.json({ status: "success", result: invoices });
   } catch (error) {
     console.error(error);
-    return res.json({ status: "error", result: error });
+    return res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -424,7 +425,7 @@ routes.get("/getAllOldInvoicesByPartyId", async(req, res) => {
       res.json({ status:'success', result:result, account:partyAccount });
     }
     catch (error) {
-      res.json({status:'error', result:error});
+      res.json({status:'error', result: error.message || error });
     }
 });
 
@@ -439,7 +440,7 @@ routes.get("/deleteInvoice", async(req, res) => {
     res.json({status:'success'});
   }catch(error){
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -459,7 +460,7 @@ routes.get("/dateExperiment", async(req, res) => {
     res.json({status:'success', result:{ resultOne }});
     }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -485,7 +486,7 @@ routes.get("/getTransaction", async(req, res) => {
     await res.json({status: 'success', result:{result:result[0], count, offset}});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -531,7 +532,7 @@ routes.get("/getAllInvoices", async(req, res) => {
     res.json({status: 'success', result: result});
   }catch(error){
     console.error(error)
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 })
 
@@ -547,7 +548,7 @@ routes.post("/createInvoiceTransaction", async(req, res) => {
     res.json({status: 'success', result: 'result'});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -559,7 +560,7 @@ routes.post("/roundOffInv", async(req, res) => {
     
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -570,7 +571,7 @@ routes.post("/invApproveDisapp", async(req, res) => {
     await res.json({status: 'success', result: 'result'});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -583,7 +584,7 @@ routes.post("/addInvoiceNote", async(req, res) => {
     await res.json({status: 'success', result: 'result'});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -600,7 +601,7 @@ routes.post("/saveChargeHeades", async(req, res) => {
     res.json({status:'success'});
   }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -619,7 +620,7 @@ routes.post("/saveHeadesNew", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -647,7 +648,7 @@ routes.get("/getHeadesNew", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -666,8 +667,7 @@ const createInvoices = async (lastJB, init, type, companyId, operation, x) => {
     }
     let addition = lastJB?.Charge_Heads?.length==0?0:1;
     company = companyId=='1'?"SNS":companyId=='2'?"CLS":"ACS";
-    // month() is 0-based: Jan = 0, July = 6
-    const invoiceYear = moment().month() >= 6 ? moment().add(1, 'years').format("YY"): moment().format("YY");
+    const invoiceYear = await getActiveFiscalYearSuffix();
     let result = {
       invoice_No:(lastJB == null || lastJB.invoice_Id == null)? `${company}-${init}-1/${invoiceYear}`: `${company}-${init}-${Number(lastJB.invoice_Id) + Number(addition)}/${invoiceYear}`,
       invoice_Id: (lastJB==null || lastJB.invoice_Id==null)?1: parseInt(lastJB.invoice_Id)+parseInt(addition),
@@ -743,7 +743,7 @@ routes.get("/getAllInvoiceData", async(req, res) => {
     res.json({status:'success', result:{InvTran, vouchers, heads}});
   }catch(error){
     console.error(error)
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 })
 
@@ -751,8 +751,7 @@ routes.get("/getAllInvoiceData", async(req, res) => {
 routes.post("/makeInvoiceNew", async(req, res) => {
   try {
     const company = req.body.companyId=='1'?"SNS":req.body.companyId=='2'?"CLS":"ACS";
-    // month() is 0-based: Jan = 0, July = 6
-    const invoiceYear = moment().month() >= 6 ? moment().add(1, 'years').format("YY"): moment().format("YY");
+    const invoiceYear = await getActiveFiscalYearSuffix();
 
     // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
     // since createdAt on these rows is set to the job's ship/departure date, not real creation time.
@@ -815,7 +814,7 @@ routes.post("/makeInvoiceNew", async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -830,7 +829,7 @@ routes.post("/openingInvoice", async(req, res) => {
     }
     const createdAt = moment(req.body.date).toDate();
     const company = req.body.companyId=="1"?'SNS':"ACS";
-    const invoiceYear = moment().add(1, 'years').format("YY");
+    const invoiceYear = await getActiveFiscalYearSuffix();
     // Find the last invoice by parsing invoice_No (company-init-N/year) instead of createdAt,
     // since createdAt here is the opening-balance date, not real creation time.
     const lastOI = await Invoice.findOne({where:{type:'Opening Invoice', invoice_No:{[Op.like]:`${company}-OI-%/${invoiceYear}`}, invoice_Id:{[Op.ne]:null}},     order:[['invoice_Id', 'DESC']], attributes:["id","invoice_Id"], include:[{model:Charge_Head, attributes:['id']}]});
@@ -881,7 +880,7 @@ routes.post("/openingInvoice", async(req, res) => {
       createdAt: invoices.dataValues.createdAt,
       updatedAt: invoices.dataValues.createdAt,
       voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
-      voucher_Id: `${invoices.dataValues.companyId == 1 ? "SNS" : invoices.dataValues.companyId == 2 ? "CLS" : "ACS"}-${invoices.dataValues.payType=="Recievable"?"OI":"OB"}-${check == null ? 1 : parseInt(check.voucher_No) + 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      voucher_Id: `${invoices.dataValues.companyId == 1 ? "SNS" : invoices.dataValues.companyId == 2 ? "CLS" : "ACS"}-${invoices.dataValues.payType=="Recievable"?"OI":"OB"}-${check == null ? 1 : parseInt(check.voucher_No) + 1}/${invoiceYear}`
     }    
 
     const voucher = await Vouchers.create({
@@ -948,7 +947,7 @@ routes.get("/getOpeningInvoices", async(req, res) => {
     res.json({status: 'success', result: result});
   }catch(e){
     console.error(e)
-    res.json({status: 'Error', result: e});
+    res.json({status: 'Error', result: e.message || e });
   }
 })
 routes.get("/getOpeningInvoice", async(req, res) => {
@@ -978,7 +977,7 @@ routes.get("/getOpeningInvoice", async(req, res) => {
     res.json({status: 'success', result: {result, voucher}});
   }catch(e){
     console.error(e)
-    res.json({status: 'Error', result: e});
+    res.json({status: 'Error', result: e.message || e });
   }
 })
 
@@ -1009,7 +1008,7 @@ routes.get("/getInvoices", async(req, res) =>{
     res.json({status: 'success', result: result});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -1141,7 +1140,7 @@ routes.post("/approve", async(req, res) => {
       voucher_Id: `${invoice.dataValues.companyId == 1 ? "SNS" : invoice.dataValues.companyId == 2 ? "CLS" : "ACS"}
       -${vouchers.vType}
       -${check == null ? 1 : parseInt(check.voucher_No) + 1}
-      /${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      /${await getActiveFiscalYearSuffix()}`
     })
 
     let Voucher_Head = []
@@ -1256,7 +1255,7 @@ routes.post("/approve", async(req, res) => {
     res.json({status: 'success', result: req.body.id});
   }catch(error){
     console.error(error)
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
   
 })
@@ -1269,7 +1268,7 @@ routes.post("/approveHeads", async(req, res) => {
     res.json({status: 'success', result: result});
   }catch(error){
     console.error(error)
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 })
 
@@ -1279,7 +1278,7 @@ routes.get('/getTaskInvoices', async(req, res) => {
     res.json({status: 'success', result: result});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -1290,7 +1289,7 @@ routes.get('/getCPUS', async(req, res) => {
   }
   catch (error) {
     console.error(error)
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -1305,7 +1304,7 @@ routes.get('/testGetLastInvoice', async(req, res) => {
     res.json({status: 'success', result: lastJI});
   }
   catch (error) {
-    res.json({status: 'error', result: error});
+    res.json({status: 'error', result: error.message || error });
   }
 });
 
@@ -1400,7 +1399,7 @@ routes.get("/jobBalancing", async (req, res) => {
     await res.json({ status: "success", result: result });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1467,7 +1466,7 @@ routes.get("/invoiceBalancing", async (req, res) => {
     res.json({ status: "success", result });
   } catch (error) {
     console.error(error);
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1491,7 +1490,7 @@ routes.get("/invoiceTest", async (req, res) => {
     await res.json({ status: "success", result: result });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1510,7 +1509,7 @@ routes.post("/uploadbulkInvoicesTest", async (req, res) => {
     await res.json({ status:"success", result:resultOne?resultOne.id:resultTwo.id });
   } catch (error) {
     console.error(error);
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1533,7 +1532,7 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
     delete temp.voucher
     let result
     try{
-      result = await Invoice.create(temp)
+      result = await Invoice.create(temp, { fiscalYearCheck: false })
 
     }catch(e){
       console.error("Invoice creater",e)
@@ -1594,7 +1593,7 @@ routes.post("/uploadbulkInvoices", async (req, res) => {
     res.json({ status: "success", result: result });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 })
 
@@ -1640,7 +1639,7 @@ routes.post("/createBulkInvoices", async (req, res) => {
     temp = req.body
     voucher = temp.voucher
     delete temp.voucher
-    const result = await Invoice.create(temp)
+    const result = await Invoice.create(temp, { fiscalYearCheck: false })
     const resultC = await Client_Associations.findOne({
       where:{
         ClientId:req.body.party_Id,
@@ -1671,7 +1670,7 @@ routes.post("/createBulkInvoices", async (req, res) => {
       }-${voucher.vType
       }-${check == null ? 1 : parseInt(check.voucher_No) + 1
       }/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
-    })
+    }, { fiscalYearCheck: false })
     const resultThree = await Invoice_Transactions.create({
       gainLoss: result.dataValues.payType=="Receivable"?(result.dataValues.total - result.dataValues.recieved):(result.dataValues.total - result.dataValues.paid),
       amount: result.dataValues.total,
@@ -1686,7 +1685,7 @@ routes.post("/createBulkInvoices", async (req, res) => {
     await res.json({ status: "success" });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1705,7 +1704,7 @@ routes.get("/getClientsWithACPayble", async (req, res) => {
     await res.json({ status: "success", result});
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1715,7 +1714,7 @@ routes.get("/invoiceMatching", async (req, res) => {
     await res.json({ status: "success", result});
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -1891,7 +1890,7 @@ routes.get("/ageingSummary", async (req, res) => {
     return res.json({ status: "success", temp });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error.message || error });
   }
 });
 
@@ -2045,7 +2044,7 @@ routes.get("/jobPnLSummary", async (req, res) => {
 
   }catch(error){
     console.error(error);
-    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error.message || error });
   }
 });
 
@@ -2254,7 +2253,7 @@ routes.get("/jobPnLComparison", async (req, res) => {
 
   }catch(error){
     console.error(error);
-    return res.status(500).json({ status: "error", message: "Internal server error", result: error });
+    return res.status(500).json({ status: "error", message: "Internal server error", result: error.message || error });
   }
 });
 

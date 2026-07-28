@@ -1,4 +1,5 @@
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
+const { getActiveFiscalYearSuffix } = require("../../functions/Associations/fiscalYearAssociations");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../functions/Associations/jobAssociations/seaExport");
 const routes = require("express").Router();
@@ -75,7 +76,7 @@ routes.post("/ApproveOfficeVoucher", async (req, res) => {
     createHistory(req.body.employeeId, 'Voucher', 'Approve', result.name);
     res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -91,7 +92,7 @@ routes.post("/recordReverse", async (req, res) => {
     );
     res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -101,7 +102,7 @@ routes.post("/OfficeVoucherUpsert", async (req, res) => {
     createHistory(req.body.employeeId, 'Voucher', 'Upsert', result.name);
     res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -114,7 +115,7 @@ routes.get("/OfficeVoucherById", async (req, res) => {
     })
     res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -130,7 +131,7 @@ routes.get("/OfficeAllVouchers", async (req, res) => {
     })
     res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -169,7 +170,7 @@ routes.post("/voucherCreation", async (req, res) => {
         voucher_Id: !req.body.voucher_Id?`${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"
         }-${req.body.vType
         }-${check == null ? 1 : parseInt(check.voucher_No) + 1
-        }/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`:req.body.voucher_Id,
+        }/${await getActiveFiscalYearSuffix()}`:req.body.voucher_Id,
       }).catch();
       let dataz = await setVoucherHeads(result.id, req.body.Voucher_Heads, req.body.currency);
       const VH = await Voucher_Heads.bulkCreate(dataz);
@@ -177,7 +178,7 @@ routes.post("/voucherCreation", async (req, res) => {
       res.json({ status: "success", result: result });
   } catch (error) {
     console.log(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -228,7 +229,7 @@ routes.post("/cheaqueReturned", async (req, res) => {
    res.json({ status: "success", result:updateInvoice });
   } catch (error) {
     console.log(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -246,7 +247,7 @@ routes.post("/voucherEdit", async (req, res) => {
     await res.json({ status: "success" });
   } catch (error) {
     console.log(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -276,7 +277,7 @@ routes.post("/deleteVoucher", async (req, res) => {
     createHistory(req.body.employeeId, 'Voucher', 'Delete', findAll[0].voucher_No);
     await res.json({ status: "success", result: { findAll } });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -328,7 +329,7 @@ routes.get("/getAccountActivity", async (req, res) => {
     await res.json({ status: "success", result: result });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -351,7 +352,7 @@ routes.get("/getAllVouchers", async (req, res) => {
     });
     await res.json({ status: "success", result: result, count:1 });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -366,7 +367,7 @@ routes.get("/testgetAll", async (req, res) => {
     });
     await res.json({ status: "success", result: result, count:1 });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -485,7 +486,7 @@ routes.get("/testgetAll", async (req, res) => {
 //     });
 //   } catch (error) {
 //     console.log(error);
-//     res.json({ status: "error", result: error });
+//     res.json({ status: "error", result: error.message || error });
 //   }
 // });
 
@@ -666,7 +667,7 @@ routes.get("/getVoucherById", async (req, res) => {
     await res.json({ status: "success", result: result });
   } catch (error) {
     console.error(error)
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -691,7 +692,7 @@ routes.get("/getVoucherByIdAdvanced", async (req, res) => {
     });
     await res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -702,7 +703,7 @@ routes.get("/getVouchersByEmployeeId", async (req, res) => {
     });
     await res.json({ status: "success", result: result });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -717,7 +718,7 @@ routes.post("/deleteBaseVoucher", async (req, res) => {
     createHistory(req.body.employeeId, 'BaseVoucher', 'Delete', res1.voucher_No);
     await res.json({ status: "success" });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -728,7 +729,7 @@ routes.post("/testDeleteVouchers", async (req, res) => {
     await Voucher_Heads.destroy({ where: {} })
     await res.json({ status: "success" });
   } catch (error) {
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 
@@ -825,7 +826,7 @@ routes.post("/deletePaymentReceipt", async(req, res) => {
     res.json({status:'success',});
   }
   catch (error) {
-    res.json({status:'error', result:error});
+    res.json({status:'error', result: error.message || error });
   }
 });
 
@@ -979,10 +980,10 @@ routes.post("/deletePaymentReceipt", async(req, res) => {
 //       })
 //       if(lastVoucher==null){
 //         v.voucher_No = 1
-//         v.voucher_Id = `${v.CompanyId == 1 ? "SNS" : v.CompanyId == 2 ? "CLS" : "ACS"}-${v.vType}-${v.voucher_No}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+//         v.voucher_Id = `${v.CompanyId == 1 ? "SNS" : v.CompanyId == 2 ? "CLS" : "ACS"}-${v.vType}-${v.voucher_No}/${await getActiveFiscalYearSuffix()}`
 //       }else{
 //         v.voucher_No = lastVoucher.voucher_No + 1
-//         v.voucher_Id = `${v.CompanyId == 1 ? "SNS" : v.CompanyId == 2 ? "CLS" : "ACS"}-${v.vType}-${v.voucher_No}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+//         v.voucher_Id = `${v.CompanyId == 1 ? "SNS" : v.CompanyId == 2 ? "CLS" : "ACS"}-${v.vType}-${v.voucher_No}/${await getActiveFiscalYearSuffix()}`
 //       }
 //       vouchers = await Vouchers.create(
 //         v,
@@ -1118,7 +1119,7 @@ routes.post("/deletePaymentReceipt", async(req, res) => {
 //   catch (error) {
 //     await t.rollback();
 //     console.log(error)
-//     res.json({status:'error', result:error});
+//     res.json({status:'error', result: error.message || error });
 //   }
 // });
 
@@ -1278,10 +1279,7 @@ routes.post("/makeTransaction", async (req, res) => {
       });
 
       v.voucher_No = lastVoucher ? lastVoucher.voucher_No + 1 : 1;
-      const yearSuffix =
-        moment().month() >= 6
-          ? moment().add(1, "year").format("YY")
-          : moment().format("YY");
+      const yearSuffix = await getActiveFiscalYearSuffix();
 
       v.voucher_Id = `${
         v.CompanyId === 1 ? "SNS" : v.CompanyId === 2 ? "CLS" : "ACS"
@@ -1365,7 +1363,7 @@ routes.post("/makeTransaction", async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error(error);
-    res.json({ status: "error", result: error });
+    res.json({ status: "error", result: error.message || error });
   }
 });
 ``
@@ -1390,10 +1388,10 @@ routes.post("/createVoucher", async(req, res) => {
     })
     if(lastVoucher==null){
       req.body.voucher_No = 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${await getActiveFiscalYearSuffix()}`
     }else{
       req.body.voucher_No = lastVoucher.voucher_No + 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${await getActiveFiscalYearSuffix()}`
     }
     const result = await Vouchers.create(req.body)
     for(let x of voucher_Heads){
@@ -1404,7 +1402,7 @@ routes.post("/createVoucher", async(req, res) => {
     res.json({status:'success', result: result});
   }catch(e){
     console.log(e)
-    res.json({status:'error', result:e});
+    res.json({status:'error', result: e.message || e });
   }
 })
 
@@ -1453,7 +1451,7 @@ routes.post("/updateVoucher", async (req, res) => {
     res.json({ status: 'success', result });
   } catch (e) {
     console.error("Error in updateVoucher:", e);
-    res.json({ status: 'error', result: e });
+    res.json({ status: 'error', result: e.message || e });
   }
 });
 
@@ -1493,7 +1491,7 @@ routes.get("/getExRateVouchers", async(req, res) => {
     res.json({status:'success'});
   }catch(e){
     console.log(e)
-    res.json({status:'error', result:e});
+    res.json({status:'error', result: e.message || e });
   }
 })
 
@@ -1615,7 +1613,7 @@ routes.post("/importVouchers", async (req, res) => {
             CompanyId: companyId,
             climaxId: voucher.Id
           },
-          { transaction: t, silent: true }
+          { transaction: t, silent: true, fiscalYearCheck: false }
         );
 
         /* ===============================
@@ -1826,7 +1824,7 @@ routes.post("/importV", async (req, res) => {
         /* ------------------------------------------
                  CREATE VOUCHER HEADER
         ------------------------------------------ */
-        const savedVoucher = await Vouchers.create(voucherHeader, { silent: true });
+        const savedVoucher = await Vouchers.create(voucherHeader, { silent: true, fiscalYearCheck: false });
 
         /* ============================================
                CREATE VOUCHER HEADS (DETAIL LINES)
@@ -2000,7 +1998,7 @@ routes.post("/importI", async (req, res) => {
         createdAt: moment(I.invoiceDate) || moment(),
         updatedAt: moment(I.invoiceDate) || moment(),
         climaxId: I.Id
-      }, { silent: true });
+      }, { silent: true, fiscalYearCheck: false });
 
       /* ---------------- Create Voucher ---------------- */
 
@@ -2030,7 +2028,7 @@ routes.post("/importI", async (req, res) => {
         CompanyId: companyId,
         invoice_Id: savedInvoice.id,
         climaxId: I.GL_Voucher.Id
-      }, { silent: true });
+      }, { silent: true, fiscalYearCheck: false });
 
       /* ---------------- Voucher Heads ---------------- */
 
@@ -2179,7 +2177,7 @@ routes.get("/getDirectJob", async ( req, res ) => {
     res.json({status: 'success', result: result});
   }catch(e){
     console.error("Error", e)
-    res.status(500).json({ status: "error", result: e})
+    res.status(500).json({ status: "error", result: e.message || e })
   }
 });
 
@@ -2251,7 +2249,7 @@ routes.post("/deleteDirectJob", async (req, res) => {
     console.error("Error deleting direct job:", e);
     await t.rollback();
     createHistory(req.body.employeeId, 'Direct Job', 'Delete', result.name);
-    return res.status(500).json({ status: "error", result: e });
+    return res.status(500).json({ status: "error", result: e.message || e });
   }
 });
 
@@ -2305,7 +2303,7 @@ routes.post("/saveDirectJob", async (req, res) => {
           transaction: t
         });
 
-        direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`;
+        direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${await getActiveFiscalYearSuffix()}`;
 
         dJob = await Direct_Job.create(direct_Job, { transaction: t });
 
@@ -2326,7 +2324,7 @@ routes.post("/saveDirectJob", async (req, res) => {
 
         Voucher = await Vouchers.create({
           voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
-          voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
+          voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${await getActiveFiscalYearSuffix()}`,
           type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
           vType: vouchervType,
           currency: direct_Job.Currency,
@@ -2418,7 +2416,7 @@ routes.post("/createDirectJob", async (req, res) => {
       });
 
       // 1️⃣ Create Direct Job
-      direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`
+      direct_Job.Entry_No = `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${direct_Job.Type == 'revenue' ? 'DR' : 'DE'}-${jobNumber ? parseInt(jobNumber.Entry_No.match(/(\d+)\//)[1])+1 : 1}/${await getActiveFiscalYearSuffix()}`
       dJob = await Direct_Job.create(direct_Job, { transaction: t });
       
       let vouchervType
@@ -2440,7 +2438,7 @@ routes.post("/createDirectJob", async (req, res) => {
 
       Voucher = await Vouchers.create({
         voucher_No: voucher ? parseInt(voucher.voucher_No) + 1 : 1,
-        voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
+        voucher_Id: `${direct_Job.companyId == '1' ? 'SNS' : 'ACS'}-${vouchervType}-${voucher ? parseInt(voucher.voucher_No) + 1 : 1}/${await getActiveFiscalYearSuffix()}`,
         type: direct_Job.Type == 'revenue' ? 'Job Recievable' : 'Job Payble',
         vType: vouchervType,
         currency: direct_Job.Currency,
@@ -2526,7 +2524,7 @@ routes.post("/deleteVoucherHeads", async (req, res) => {
     res.status(200).json({ status: "success", result: result });
   } catch (e) {
     console.error("Error", e)
-    res.status(500).json({ status: "error", result: e})
+    res.status(500).json({ status: "error", result: e.message || e })
   }
 });
 
@@ -2688,7 +2686,7 @@ routes.post("/checkVoucherHeads", async (req, res) => {
     // })
   }catch(e){
     console.error("Error", e)
-    res.status(500).json({ status: "error", result: e})
+    res.status(500).json({ status: "error", result: e.message || e })
   }
 })
 

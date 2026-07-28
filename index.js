@@ -186,6 +186,7 @@ const authRoutes = require('./routes/auth/');
 const ports = require('./routes/ports');
 const destinations = require('./routes/destinations');
 const airports = require('./routes/airports');
+const fiscalYearRoutes = require('./routes/fiscalYears');
 const verify = require('./functions/tokenVerification');
 
 /* -------------------- ASSOCIATIONS (SIDE EFFECTS) -------------------- */
@@ -196,6 +197,7 @@ require('./functions/Associations/incoiceAssociations');
 require('./functions/Associations/NotificationAssociation');
 require('./functions/Associations/taskAssociation');
 require('./functions/Associations/vesselAssociations');
+require('./functions/Associations/fiscalYearAssociations');
 
 /* -------------------- BASIC PUBLIC ROUTES -------------------- */
 app.get('/', (req, res) => {
@@ -249,6 +251,7 @@ app.use('/manifest', manifest);
 app.use('/ports', ports);
 app.use('/destinations', destinations);
 app.use('/airports', airports);
+app.use('/fiscalYears', fiscalYearRoutes);
 
 /* -------------------- ERROR HANDLER -------------------- */
 app.use((err, req, res, next) => {
