@@ -49,6 +49,7 @@ routes.post("/createEmployee", CEO_CFO_ADMIN, async(req, res) => {
                 account_no:req.body.values.accountNo,
                 code:req.body.values.code,
                 represent:req.body.values.represent,
+                defaultCompanyId:req.body.values.defaultCompanyId,
                 active:1
             });
             const resultTwo = await Access_Levels.bulkCreate(getAccessLevels(req.body.values.accessLevels, result.id))
@@ -83,6 +84,7 @@ routes.post("/editEmployee", CEO_CFO_ADMIN, async(req, res) => {
             bank:req.body.values.bank,
             account_no:req.body.values.accountNo,
             code:req.body.values.code,
+            defaultCompanyId:req.body.values.defaultCompanyId,
             active:1
         }, {where:{id:req.body.values.id}})
         const resultTwo = await Access_Levels.bulkCreate(getAccessLevels(req.body.values.accessLevels, req.body.values.id))

@@ -59,6 +59,7 @@ routes.post('/login', async (req, res) => {
       username: user.name,
       designation: user.designation,
       access: makeAccessList(user.Access_Levels),
+      defaultCompanyId: user.defaultCompanyId,
     };
 
     const token = jwt.sign(payload, JWT_SECRET, {

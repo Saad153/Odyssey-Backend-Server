@@ -3,6 +3,7 @@ const { FiscalYears } = require("../../../models");
 const { Vouchers } = require("../voucherAssociations");
 const { SE_Job } = require("../jobAssociations/seaExport");
 const { Invoice } = require("../incoiceAssociations");
+const { getSelectedFiscalYearId } = require("../../fiscalYearContext");
 
 FiscalYears.hasMany(Vouchers, {
     foreignKey: {
@@ -48,13 +49,26 @@ Invoice.belongsTo(FiscalYears);
 // 2. On UPDATE/DESTROY: blocked outright if the record currently belongs
 //    to a fiscal year that is locked - a locked period is frozen,
 //    including routine operational updates (e.g. recording a payment
-//    against an old invoice), not just direct edits.
+//    against an old invoice), not just direct edits. ALSO blocked if the
+//    record belongs to a fiscal year other than the one the requesting
+//    user currently has selected (even if that other year is unlocked) -
+//    you can only work with records in your own selected year; to touch
+//    a job/voucher/invoice from a different unlocked year, switch your
+//    selection to that year first on the Fiscal Years page. The selected
+//    year is read from the x-fiscal-year-id header via
+//    functions/fiscalYearContext.js (attached to every request by the
+//    frontend's axios interceptor), not passed through each route by hand.
 
 const resolveSelectedFiscalYear = async (fiscalYearId, transaction) => {
-    if (!fiscalYearId) {
+    // Falls back to the request's x-fiscal-year-id header (via
+    // fiscalYearContext) if the route didn't pass an explicit id - a
+    // safety net so any route that forgets this still gets it right,
+    // rather than silently creating an untagged record.
+    const resolvedId = fiscalYearId || getSelectedFiscalYearId();
+    if (!resolvedId) {
         throw new Error("Select a fiscal year to work in before creating this record.");
     }
-    const fiscalYear = await FiscalYears.findByPk(fiscalYearId, { transaction });
+    const fiscalYear = await FiscalYears.findByPk(resolvedId, { transaction });
     if (!fiscalYear) {
         throw new Error("Selected fiscal year not found.");
     }
@@ -84,25 +98,42 @@ const getFiscalYearCreateBulkGate = () => async (instances, options) => {
     }
 };
 
-// Throws if any FiscalYearId in the given list points to a locked fiscal year.
-const assertNoneLocked = async (fiscalYearIds, transaction) => {
+// Throws if any FiscalYearId in the given list points to a locked fiscal
+// year, or (when the requesting user has a fiscal year selected) to one
+// other than their current selection. Records with no FiscalYearId at all
+// (e.g. legacy data predating this feature) are left alone - there's no
+// fiscal year context to enforce against.
+const assertWorkable = async (fiscalYearIds, transaction) => {
     const ids = [...new Set(fiscalYearIds)].filter(Boolean);
     if (!ids.length) return;
-    const lockedFiscalYear = await FiscalYears.findOne({
-        where: { id: { [Op.in]: ids }, isLocked: true },
+
+    const relevantFiscalYears = await FiscalYears.findAll({
+        where: { id: { [Op.in]: ids } },
         transaction,
     });
+
+    const lockedFiscalYear = relevantFiscalYears.find((fy) => fy.isLocked);
     if (lockedFiscalYear) {
         throw new Error(
             `This record belongs to a locked fiscal year (${lockedFiscalYear.label}) and cannot be modified. Unlock that fiscal year first if this change is truly needed.`
         );
+    }
+
+    const selectedFiscalYearId = getSelectedFiscalYearId();
+    if (selectedFiscalYearId) {
+        const mismatched = relevantFiscalYears.find((fy) => String(fy.id) !== String(selectedFiscalYearId));
+        if (mismatched) {
+            throw new Error(
+                `This record belongs to fiscal year "${mismatched.label}", not your currently selected fiscal year. Switch your selected fiscal year on the Fiscal Years page to work with it.`
+            );
+        }
     }
 };
 
 // Instance-level path: instance.update() / instance.save() / instance.destroy()
 const getFiscalYearLockGate = () => async (instance, options) => {
     if (options.fiscalYearCheck === false) return;
-    await assertNoneLocked([instance.FiscalYearId], options.transaction);
+    await assertWorkable([instance.FiscalYearId], options.transaction);
 };
 
 // Static bulk path: Model.update(values, { where }) / Model.destroy({ where })
@@ -113,7 +144,7 @@ const getFiscalYearLockBulkGate = (Model) => async (options) => {
         attributes: ['FiscalYearId'],
         transaction: options.transaction,
     });
-    await assertNoneLocked(records.map((r) => r.FiscalYearId), options.transaction);
+    await assertWorkable(records.map((r) => r.FiscalYearId), options.transaction);
 };
 
 [Vouchers, SE_Job, Invoice].forEach((Model) => {
@@ -135,7 +166,7 @@ Vouchers.addHook('beforeUpsert', async (values, options) => {
         transaction: options.transaction,
     });
     if (record) {
-        await assertNoneLocked([record.FiscalYearId], options.transaction);
+        await assertWorkable([record.FiscalYearId], options.transaction);
     }
 });
 

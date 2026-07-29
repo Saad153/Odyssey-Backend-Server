@@ -188,6 +188,7 @@ const destinations = require('./routes/destinations');
 const airports = require('./routes/airports');
 const fiscalYearRoutes = require('./routes/fiscalYears');
 const verify = require('./functions/tokenVerification');
+const { fiscalYearContextMiddleware } = require('./functions/fiscalYearContext');
 
 /* -------------------- ASSOCIATIONS (SIDE EFFECTS) -------------------- */
 require('./functions/Associations/jobAssociations/seaExport');
@@ -222,6 +223,11 @@ app.use((req, res, next) => {
   }
   return verify(req, res, next);
 });
+
+// Makes "which fiscal year does this user currently have selected" readable
+// from anywhere in the request's async chain (see functions/fiscalYearContext.js)
+// without threading it through every route/Sequelize call by hand.
+app.use(fiscalYearContextMiddleware);
 
 /* -------------------- AUTHENTICATED ROUTES -------------------- */
 app.get('/getUser', (req, res) => {

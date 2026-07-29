@@ -67,6 +67,9 @@ module.exports = (sequelize, DataTypes) => {
         represent:{
             type:DataTypes.STRING
         },
+        defaultCompanyId:{
+            type:DataTypes.STRING
+        },
         createdBy:{
             type:DataTypes.STRING
         },
