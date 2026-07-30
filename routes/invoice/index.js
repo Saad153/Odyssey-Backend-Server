@@ -14,6 +14,9 @@ const moment = require("moment");
 const { Client } = require("pg");
 const Op = Sequelize.Op;
 const { createHistory } = require('../../functions/history');
+const { verifyPrintToken } = require('../../functions/printToken');
+const { renderInvoicePdf } = require('../../functions/pdf');
+const { sendMail } = require('../../functions/mailer');
 
 const numCPUs = require('os').cpus().length;
 
@@ -181,50 +184,187 @@ routes.get("/getInvoiceByNo", async(req, res) => {
     }
 });
 
+// Shared by /getInvoiceById and /getPrintData so the emailed/printed PDF can
+// never drift out of sync with what the invoice viewer shows.
+const getInvoiceDetail = (id) => {
+  const attr = [
+    'name', 'address1', 'address1', 'person1', 'mobile1',
+    'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
+  ];
+  return Invoice.findOne({
+    where:{id:{ [Op.eq]: id }},
+    include:[
+      { model:Charge_Head },
+      {
+        model:SE_Job,
+        attributes:[
+          'jobNo', 'jobDate', 'shipDate', 'pol', 'pod', 'fd', 'vol', 'weight', 'pcs', 'flightNo', 'cwtClient', 'cwtLine', 'departureDate', 'customerRef'
+        ],
+        include:[
+          { model:SE_Equipments , attributes:['qty', 'size'] },
+          {
+            model:Bl , attributes:['mbl', 'hbl'],
+            include:[{model:Container_Info, attributes:['no']}]
+          },
+          { model:Voyage , attributes:['voyage', 'importArrivalDate', 'exportSailDate'] },
+          { model:Clients, attributes:attr },
+          { model:Clients, as:'consignee', attributes:attr },
+          { model:Clients, as:'shipper', attributes:attr },
+          { model:Clients, as:'shipping_line', attributes:attr },
+          { model:Employees, as:'sales_representator', attributes:['name'] },
+          { model:Vessel, as:'vessel', attributes:['carrier', 'name'] },
+          { model:Clients, as:'air_line', attributes:['name'] },
+        ]
+      },
+    ],
+    order: [
+      [{ model: Charge_Head }, 'id', 'ASC'],
+    ]
+  });
+};
+
 routes.get("/getInvoiceById", async(req, res) => {
   try {
-      const attr = [
-        'name', 'address1', 'address1', 'person1', 'mobile1',
-        'person2', 'mobile2', 'telephone1', 'telephone2', 'infoMail'
-      ];
-      const resultOne = await Invoice.findOne({
-        where:{id:{ [Op.eq]: req.headers.invoiceid }},
-        include:[
-          { model:Charge_Head },
-          {
-            model:SE_Job,
-            attributes:[
-              'jobNo', 'jobDate', 'shipDate', 'pol', 'pod', 'fd', 'vol', 'weight', 'pcs', 'flightNo', 'cwtClient', 'cwtLine', 'departureDate', 'customerRef'
-            ],
-            //attributes:['id'],
-            include:[
-              { model:SE_Equipments , attributes:['qty', 'size'] },
-              { 
-                model:Bl , attributes:['mbl', 'hbl'],
-                include:[{model:Container_Info, attributes:['no']}]
-              },
-              { model:Voyage , attributes:['voyage', 'importArrivalDate', 'exportSailDate'] },
-              { model:Clients, attributes:attr },
-              { model:Clients, as:'consignee', attributes:attr },
-              { model:Clients, as:'shipper', attributes:attr },
-              { model:Clients, as:'shipping_line', attributes:attr },
-              { model:Employees, as:'sales_representator', attributes:['name'] },
-              { model:Vessel, as:'vessel', attributes:['carrier', 'name'] },
-              { model:Clients, as:'air_line', attributes:['name'] },
-              //{ model:Voyage },
-            ]
-          },
-        ],
-        order: [
-          [{ model: Charge_Head }, 'id', 'ASC'],
-        ]
-      })
+      const resultOne = await getInvoiceDetail(req.headers.invoiceid);
       res.json({status:'success', result:{ resultOne }});
     }
     catch (error) {
       res.json({status:'error', result: error.message || error });
       console.error(error)
     }
+});
+
+// Token-gated (see functions/printToken.js) instead of session-gated: this is
+// loaded by a headless browser (see functions/pdf.js) which has no login
+// session, so it's exempted from the global auth middleware in index.js and
+// does its own narrow, single-invoice, short-lived token check instead.
+routes.get("/getPrintData", async(req, res) => {
+  try {
+    verifyPrintToken(req.headers.printtoken, req.headers.invoiceid);
+    const resultOne = await getInvoiceDetail(req.headers.invoiceid);
+    res.json({status:'success', result:{ resultOne }});
+  }
+  catch (error) {
+    res.status(401).json({status:'error', result: 'Invalid or expired print link.'});
+  }
+});
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const escapeHtml = (s) => String(s ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+// Plain-text default the user sees (and can edit) in the send-email preview.
+const buildDefaultEmail = (invoice, employeeName) => {
+  const subject = `Invoice ${invoice.invoice_No} - ${invoice.party_Name}`;
+  const body =
+`Dear ${invoice.party_Name},
+
+Please find attached invoice ${invoice.invoice_No}${invoice.SE_Job?.jobNo ? ` for job ${invoice.SE_Job.jobNo}` : ''}, amount ${invoice.currency} ${invoice.total}.
+
+This invoice is system generated and does not require a signature.
+
+Regards,
+${employeeName}`;
+  return { subject, body };
+};
+
+// invoice.party_Id is a Child_Accounts.id (chart-of-accounts entry), not a
+// Clients.id directly — resolve the actual party via Client_Associations.
+const resolveInvoiceParty = async(partyId) => {
+  const childAccount = await Child_Account.findOne({ where:{ id:partyId } });
+  if (!childAccount) {
+    return { error:'Could not resolve the account for this party.' };
+  }
+  const association = await Client_Associations.findOne({ where:{ ChildAccountId:childAccount.id } });
+  if (!association) {
+    return { error:'This party is not linked to a client record.' };
+  }
+  const party = await Clients.findOne({ where:{ id:association.ClientId } });
+  if (!party) {
+    return { error:'Could not find the client record for this party.' };
+  }
+  return { party };
+};
+
+routes.get("/getPartyEmails", async(req, res) => {
+  try {
+    const invoice = await Invoice.findOne({
+      where:{ id:req.headers.invoiceid },
+      include:[{ model:SE_Job, attributes:['jobNo'] }]
+    });
+    if (!invoice) {
+      return res.json({ status:'error', result:'Invoice not found.' });
+    }
+    const { party, error } = await resolveInvoiceParty(invoice.party_Id);
+    if (error) {
+      return res.json({ status:'error', result:error });
+    }
+    const employee = await Employees.findOne({ where:{ id:req.headers.employeeid } });
+    const { subject, body } = buildDefaultEmail(invoice, employee?.name || '');
+    res.json({
+      status:'success',
+      result:{
+        partyName:invoice.party_Name, infoMail:party.infoMail || '', accountsMail:party.accountsMail || '',
+        defaultSubject:subject, defaultBody:body
+      }
+    });
+  }
+  catch (error) {
+    console.error(error);
+    res.json({ status:'error', result: error.message || 'Failed to load party emails.' });
+  }
+});
+
+routes.post("/sendEmail", async(req, res) => {
+  try {
+    const { id, employeeId, to, subject, body } = req.body;
+
+    if (!to || !EMAIL_RE.test(to)) {
+      return res.json({ status:'error', result:'Please provide a valid email address to send to.' });
+    }
+
+    const employee = await Employees.findOne({ where:{ id:employeeId } });
+    if (!employee || !employee.email) {
+      return res.json({ status:'error', result:'Your account has no email registered. Ask an admin to add one before sending invoices.' });
+    }
+
+    const invoice = await Invoice.findOne({
+      where:{ id },
+      include:[{ model:SE_Job, attributes:['jobNo'] }]
+    });
+    if (!invoice) {
+      return res.json({ status:'error', result:'Invoice not found.' });
+    }
+
+    const fallback = buildDefaultEmail(invoice, employee.name);
+    const finalSubject = (subject && subject.trim()) || fallback.subject;
+    const finalBody = (body && body.trim()) || fallback.body;
+
+    const pdfBuffer = await renderInvoicePdf(invoice.id);
+
+    await sendMail({
+      fromName: employee.name,
+      fromEmail: employee.email,
+      to,
+      subject: finalSubject,
+      html: `<p>${escapeHtml(finalBody).replace(/\n/g, '<br/>')}</p>`,
+      attachments: [
+        { filename: `${invoice.invoice_No}.pdf`, content: pdfBuffer }
+      ],
+    });
+
+    createHistory(employeeId, 'Invoice', `Email Sent (${to})`, invoice.invoice_No);
+    res.json({ status:'success' });
+  }
+  catch (error) {
+    console.error(error);
+    res.json({ status:'error', result: error.message || 'Failed to send invoice email.' });
+  }
 });
 
 routes.get("/testResetSomeInvoices", async(req, res) => {

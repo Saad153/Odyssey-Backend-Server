@@ -133,6 +133,7 @@
 // module.exports = app;
 
 // app.js
+require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -214,6 +215,10 @@ const PUBLIC_PATHS = [
   '/authRoutes/register',
   '/authRoutes/verifyLogin',
   '/companies/getAllCompanies',
+  // Not actually public: gated by its own short-lived, single-invoice print
+  // token (see functions/printToken.js) instead of a login session, since
+  // it's loaded by a headless browser with no session cookie (functions/pdf.js).
+  '/invoice/getPrintData',
 ];
 
 app.use((req, res, next) => {
