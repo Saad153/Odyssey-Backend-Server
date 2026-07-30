@@ -1119,7 +1119,7 @@ routes.post("/approve", async(req, res) => {
     let account
     account = await Client_Associations.findOne({where:{ClientId:invoice.dataValues.party_Id}})
 
-    vouchers = {
+    const vouchers = {
       type:invoice.dataValues.payType=="Recievable"?"Job Recievable":"Job Payble",
       vType:invoice.dataValues.payType=="Recievable"?"SI":"PI",
       CompanyId:invoice.dataValues.companyId,
@@ -1173,7 +1173,7 @@ routes.post("/approve", async(req, res) => {
     })
   } else if(parseFloat(invoice.dataValues.roundOff)>"0"  && invoice.dataValues.payType=="Recievable"){
    Voucher_Head.push({
-      amount:amount + parseFloat(invoice.dataValues.roundOff),
+      amount:total + parseFloat(invoice.dataValues.roundOff),
       defaultAmount: defaultTotal,
       type:invoice.dataValues.payType=="Recievable"?"debit":"credit",
       narration:narration,
@@ -1181,7 +1181,7 @@ routes.post("/approve", async(req, res) => {
       ChildAccountId:invoice.dataValues.party_Id,
     })
     Voucher_Head.push({
-      amount:amount + parseFloat(invoice.dataValues.roundOff),
+      amount:total + parseFloat(invoice.dataValues.roundOff),
       defaultAmount: defaultTotal,
       type:"credit",
       narration:narration,
@@ -1190,7 +1190,7 @@ routes.post("/approve", async(req, res) => {
     })
   } else if(parseFloat(invoice.dataValues.roundOff)<"0"  && invoice.dataValues.payType=="Recievable"){
     Voucher_Head.push({
-      amount:amount- parseFloat(invoice.dataValues.roundOff)*-1,
+      amount:total- parseFloat(invoice.dataValues.roundOff)*-1,
       defaultAmount: defaultTotal,
       type:invoice.dataValues.payType=="Recievable"?"debit":"credit",
       narration:narration,
@@ -1198,7 +1198,7 @@ routes.post("/approve", async(req, res) => {
       ChildAccountId:invoice.dataValues.party_Id
     })
     Voucher_Head.push({
-      amount:amount,
+      amount:total,
       type:"credit",
       narration:narration,
       VoucherId:voucher.dataValues.id,
@@ -1214,7 +1214,7 @@ routes.post("/approve", async(req, res) => {
     })
   } else if(parseFloat(invoice.dataValues.roundOff) >0  && invoice.dataValues.payType!="Recievable"){
     Voucher_Head.push({
-      amount:amount+ parseFloat(invoice.dataValues.roundOff),
+      amount:total+ parseFloat(invoice.dataValues.roundOff),
       defaultAmount: defaultTotal,
       type:"credit",
       narration:narration,
@@ -1222,7 +1222,7 @@ routes.post("/approve", async(req, res) => {
       ChildAccountId:invoice.dataValues.party_Id
     })
     Voucher_Head.push({
-      amount:amount + parseFloat(invoice.dataValues.roundOff),
+      amount:total + parseFloat(invoice.dataValues.roundOff),
       defaultAmount: defaultTotal,
       type:"debit",
       narration:narration,
@@ -1231,7 +1231,7 @@ routes.post("/approve", async(req, res) => {
     })
   } else if(parseFloat(invoice.dataValues.roundOff) <0  && invoice.dataValues.payType!="Recievable"){
     Voucher_Head.push({
-      amount:(amount - parseFloat(invoice.dataValues.roundOff)*-1).toFixed(2),
+      amount:(total - parseFloat(invoice.dataValues.roundOff)*-1).toFixed(2),
       defaultAmount: defaultTotal,
       type:"credit",
       narration:narration,
@@ -1239,7 +1239,7 @@ routes.post("/approve", async(req, res) => {
       ChildAccountId:invoice.dataValues.party_Id
     })
     Voucher_Head.push({
-      amount:(amount).toFixed(2),
+      amount:(total).toFixed(2),
       defaultAmount: defaultTotal,
       type:"debit",
       narration:narration,

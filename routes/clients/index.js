@@ -435,16 +435,18 @@ routes.get("/getForCharges", async (req, res) => {
 
   try {
 
+    const partyId = parseInt(req.headers.id);
+    if (!partyId) {
+      return res.json({ status: "success", result: [] });
+    }
+
     let obj = {
+    id: partyId,
     [Op.or]: [
         { nongl: '0' },
         { nongl: null }
     ]
     };
-
-    if (req.headers.id) {
-    obj.id = parseInt(req.headers.id);
-    }
 
     const result = await Clients.findAll({
       where: obj,
