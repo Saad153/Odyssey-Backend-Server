@@ -205,7 +205,7 @@ routes.post("/createClient", CEO_CFO_ADMIN, async (req, res) => {
   });
 });
 
-routes.post("/createClientInBulk", async(req, res) => {
+routes.post("/createClientInBulk", CEO_CFO_ADMIN, async(req, res) => {
 
     const createChildAccounts = (list, name) => {
         let result = [];
@@ -258,7 +258,7 @@ routes.post("/createClientInBulk", async(req, res) => {
     }
 });
 
-routes.post("/editClient", async (req, res) => {
+routes.post("/editClient", CEO_CFO_ADMIN, async (req, res) => {
   try {
     await db.sequelize.transaction(async (t) => {
     //   console.log("Request Body:", req.body);
@@ -352,11 +352,33 @@ routes.post("/editClient", async (req, res) => {
   }
 });
 
-routes.get("/getClients", async(req, res) => {
+routes.get("/getClients", CEO_CFO_ADMIN, async(req, res) => {
     try {
         const result = await Clients.findAll({
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
             order: [['createdAt', 'DESC'], /* ['name', 'ASC'],*/] ,
+            include: [{
+                model: Client_Associations,
+                required: false
+            }]
+        });
+        res.json({status:'success', result:result});
+    }
+    catch (error) {
+        console.error(error)
+      res.json({status:'error', result:error});
+    }
+});
+
+// Same data as /getClients, deliberately NOT designation-gated: this backs
+// the party-search picker inside job Charges (Components/.../PartySearch.js),
+// which every employee needs to be able to use to pick a party for a charge
+// line, even though they can't reach the Setup > Parties list/edit screens.
+routes.get("/getClientsForSelect", async(req, res) => {
+    try {
+        const result = await Clients.findAll({
+            attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
+            order: [['createdAt', 'DESC']],
             include: [{
                 model: Client_Associations,
                 required: false
@@ -388,7 +410,7 @@ routes.get("/getClientsbyType", async(req, res) => {
     }
 });
 
-routes.get("/getClientById", async(req, res) => {
+routes.get("/getClientById", CEO_CFO_ADMIN, async(req, res) => {
     try {
         const result = await Clients.findOne({
             where:{id:req.headers.id},
@@ -552,7 +574,7 @@ routes.get("/getClientAssociations", async(req, res) => {
     }
 });
 
-routes.post("/deleteClient", async(req, res) => {
+routes.post("/deleteClient", CEO_CFO_ADMIN, async(req, res) => {
     try{
         let clientId = req.body.id
         const result0 = await Clients.findOne({where: {
@@ -624,7 +646,7 @@ routes.post("/deleteClient", async(req, res) => {
     }
 })
 
-routes.post("/bulkCreate", async (req, res) => {
+routes.post("/bulkCreate", CEO_CFO_ADMIN, async (req, res) => {
   const parties = req.body;
   try {
     let i = 1

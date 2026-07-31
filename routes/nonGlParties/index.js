@@ -25,7 +25,7 @@ routes.post("/createNonGlParty", CEO_CFO_ADMIN, async(req, res) => {
     }
 });
 
-routes.get("/getParties", async(req, res) => {
+routes.get("/getParties", CEO_CFO_ADMIN, async(req, res) => {
     try {
         const result = await Clients.findAll({
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code'],
@@ -39,7 +39,7 @@ routes.get("/getParties", async(req, res) => {
     }
 });
 
-routes.get("/getPartiesById", async(req, res) => {
+routes.get("/getPartiesById", CEO_CFO_ADMIN, async(req, res) => {
     try {
         const result = await Clients.findOne({where:{id:req.headers.id}});
         res.json({status:'success', result:result});
@@ -49,7 +49,7 @@ routes.get("/getPartiesById", async(req, res) => {
     }
 });
 
-routes.post("/editNonGlParty", async(req, res) => {
+routes.post("/editNonGlParty", CEO_CFO_ADMIN, async(req, res) => {
     try {
         let value = req.body;
         value.id = value.id
