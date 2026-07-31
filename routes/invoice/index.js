@@ -249,7 +249,7 @@ routes.get("/getPrintData", async(req, res) => {
   }
 });
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const { parseEmailList, isValidEmailList } = require('../../functions/emailList');
 
 const escapeHtml = (s) => String(s ?? '')
   .replace(/&/g, '&amp;')
@@ -310,7 +310,9 @@ routes.get("/getPartyEmails", async(req, res) => {
       status:'success',
       result:{
         partyName:invoice.party_Name, infoMail:party.infoMail || '', accountsMail:party.accountsMail || '',
-        defaultSubject:subject, defaultBody:body
+        defaultSubject:subject, defaultBody:body,
+        defaultCc: process.env.DEFAULT_INVOICE_CC || '',
+        defaultBcc: process.env.DEFAULT_INVOICE_BCC || '',
       }
     });
   }
@@ -322,10 +324,16 @@ routes.get("/getPartyEmails", async(req, res) => {
 
 routes.post("/sendEmail", async(req, res) => {
   try {
-    const { id, employeeId, to, subject, body } = req.body;
+    const { id, employeeId, to, cc, bcc, subject, body } = req.body;
 
-    if (!to || !EMAIL_RE.test(to)) {
-      return res.json({ status:'error', result:'Please provide a valid email address to send to.' });
+    if (!isValidEmailList(to, { requireNonEmpty:true })) {
+      return res.json({ status:'error', result:'Please provide a valid email address (or ; separated list) to send to.' });
+    }
+    if (!isValidEmailList(cc)) {
+      return res.json({ status:'error', result:'One of the CC email addresses looks invalid.' });
+    }
+    if (!isValidEmailList(bcc)) {
+      return res.json({ status:'error', result:'One of the BCC email addresses looks invalid.' });
     }
 
     const employee = await Employees.findOne({ where:{ id:employeeId } });
@@ -346,11 +354,16 @@ routes.post("/sendEmail", async(req, res) => {
     const finalBody = (body && body.trim()) || fallback.body;
 
     const pdfBuffer = await renderInvoicePdf(invoice.id);
+    const toList = parseEmailList(to);
+    const ccList = parseEmailList(cc);
+    const bccList = parseEmailList(bcc);
 
     await sendMail({
       fromName: employee.name,
       fromEmail: employee.email,
-      to,
+      to: toList,
+      cc: ccList,
+      bcc: bccList,
       subject: finalSubject,
       html: `<p>${escapeHtml(finalBody).replace(/\n/g, '<br/>')}</p>`,
       attachments: [
@@ -358,7 +371,8 @@ routes.post("/sendEmail", async(req, res) => {
       ],
     });
 
-    createHistory(employeeId, 'Invoice', `Email Sent (${to})`, invoice.invoice_No);
+    const historyNote = `Email Sent (${toList.join(', ')})${ccList.length ? ` [CC: ${ccList.length}]` : ''}${bccList.length ? ` [BCC: ${bccList.length}]` : ''}`;
+    createHistory(employeeId, 'Invoice', historyNote, invoice.invoice_No);
     res.json({ status:'success' });
   }
   catch (error) {

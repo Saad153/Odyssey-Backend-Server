@@ -26,11 +26,13 @@ function getTransporter() {
 // authentication always happens as SMTP_USER (the shared relay account).
 // Whether the mail server accepts a From address that differs from the
 // authenticated account depends on how the domain admin has configured it.
-async function sendMail({ fromName, fromEmail, to, subject, html, attachments }) {
+async function sendMail({ fromName, fromEmail, to, cc, bcc, subject, html, attachments }) {
   const t = getTransporter();
   return t.sendMail({
     from: `"${fromName}" <${fromEmail}>`,
     to,
+    cc: cc && cc.length ? cc : undefined,
+    bcc: bcc && bcc.length ? bcc : undefined,
     subject,
     html,
     attachments,
