@@ -1,8 +1,11 @@
 const { Clients } = require("../../functions/Associations/clientAssociation");
 const routes = require('express').Router();
 const { createHistory } = require('../../functions/history');
+const requireDesignation = require('../../functions/requireDesignation');
 
-routes.post("/createNonGlParty", async(req, res) => {
+const CEO_CFO_ADMIN = requireDesignation(['CEO', 'CFO', 'admin']);
+
+routes.post("/createNonGlParty", CEO_CFO_ADMIN, async(req, res) => {
     try {
         let value = req.body;
         value.operations = value.operations.join(', ');
@@ -61,7 +64,7 @@ routes.post("/editNonGlParty", async(req, res) => {
     }
 });
 
-routes.post("/createNonglPartiesInBulk", async(req, res) => {
+routes.post("/createNonglPartiesInBulk", CEO_CFO_ADMIN, async(req, res) => {
 
     let parties = [
         {

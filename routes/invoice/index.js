@@ -7,7 +7,7 @@ const { resolveSelectedFiscalYear } = require("../../functions/Associations/fisc
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
-const { Accounts, Vessel, Transaction } = require("../../models");
+const { Accounts, Vessel, Transaction, Email_Suggestion } = require("../../models");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const moment = require("moment");
@@ -291,6 +291,75 @@ const resolveInvoiceParty = async(partyId) => {
   return { party };
 };
 
+// Bumps (or creates) the usage count for each address so it ranks higher in
+// future /suggestEmails results — best-effort, never blocks the actual send.
+const recordEmailUsage = async(emails) => {
+  try {
+    for (const email of emails) {
+      const [row, created] = await Email_Suggestion.findOrCreate({
+        where:{ email },
+        defaults:{ usageCount:1, lastUsedAt:new Date() }
+      });
+      if (!created) {
+        await row.update({ usageCount:row.usageCount + 1, lastUsedAt:new Date() });
+      }
+    }
+  } catch (error) {
+    console.error('recordEmailUsage failed:', error);
+  }
+};
+
+routes.get("/suggestEmails", async(req, res) => {
+  try {
+    const q = (req.headers.q || '').trim();
+    if (!q) {
+      return res.json({ status:'success', result:[] });
+    }
+    const qLower = q.toLowerCase();
+
+    const [history, employees, clients] = await Promise.all([
+      Email_Suggestion.findAll({
+        where:{ email:{ [Op.iLike]:`%${q}%` } },
+        order:[['usageCount', 'DESC'], ['lastUsedAt', 'DESC']],
+        limit:10,
+      }),
+      Employees.findAll({
+        where:{ email:{ [Op.iLike]:`%${q}%` } },
+        attributes:['email'],
+        limit:10,
+      }),
+      Clients.findAll({
+        where:{
+          [Op.or]:[
+            { infoMail:{ [Op.iLike]:`%${q}%` } },
+            { accountsMail:{ [Op.iLike]:`%${q}%` } },
+          ]
+        },
+        attributes:['infoMail', 'accountsMail'],
+        limit:20,
+      }),
+    ]);
+
+    const results = new Set();
+    history.forEach(h => results.add(h.email));
+    employees.forEach(e => e.email && results.add(e.email));
+    clients.forEach(c => {
+      [c.infoMail, c.accountsMail].forEach(field => {
+        if (!field) return;
+        field.split(/[;,]/).map(s => s.trim()).forEach(addr => {
+          if (addr.toLowerCase().includes(qLower)) results.add(addr);
+        });
+      });
+    });
+
+    res.json({ status:'success', result:Array.from(results).slice(0, 10) });
+  }
+  catch (error) {
+    console.error(error);
+    res.json({ status:'error', result: error.message || 'Failed to load email suggestions.' });
+  }
+});
+
 routes.get("/getPartyEmails", async(req, res) => {
   try {
     const invoice = await Invoice.findOne({
@@ -373,6 +442,7 @@ routes.post("/sendEmail", async(req, res) => {
 
     const historyNote = `Email Sent (${toList.join(', ')})${ccList.length ? ` [CC: ${ccList.length}]` : ''}${bccList.length ? ` [BCC: ${bccList.length}]` : ''}`;
     createHistory(employeeId, 'Invoice', historyNote, invoice.invoice_No);
+    recordEmailUsage([...toList, ...ccList, ...bccList]);
     res.json({ status:'success' });
   }
   catch (error) {

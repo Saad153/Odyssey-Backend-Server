@@ -188,6 +188,7 @@ const ports = require('./routes/ports');
 const destinations = require('./routes/destinations');
 const airports = require('./routes/airports');
 const fiscalYearRoutes = require('./routes/fiscalYears');
+const reconciliationRoutes = require('./routes/reconciliation');
 const verify = require('./functions/tokenVerification');
 const { fiscalYearContextMiddleware } = require('./functions/fiscalYearContext');
 
@@ -263,6 +264,7 @@ app.use('/ports', ports);
 app.use('/destinations', destinations);
 app.use('/airports', airports);
 app.use('/fiscalYears', fiscalYearRoutes);
+app.use('/reconciliation', reconciliationRoutes);
 
 /* -------------------- ERROR HANDLER -------------------- */
 app.use((err, req, res, next) => {

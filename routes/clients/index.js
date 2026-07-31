@@ -9,6 +9,9 @@ const { Child_Account, Parent_Account } = require("../../functions/Associations/
 const { Voucher_Heads } = require('../../functions/Associations/voucherAssociations');
 const { createHistory } = require('../../functions/history');
 const { types } = require('pg');
+const requireDesignation = require('../../functions/requireDesignation');
+
+const CEO_CFO_ADMIN = requireDesignation(['CEO', 'CFO', 'admin']);
 
 const validTypes = [
   "Slot Operator",
@@ -61,7 +64,7 @@ const createAccountList = (parent, child, id) => {
     return result;
 }
 
-routes.post("/addClient", async(req, res)=>{
+routes.post("/addClient", CEO_CFO_ADMIN, async(req, res)=>{
     try{
         const result = await Clients.create(req.body)
         res.json({
@@ -101,7 +104,7 @@ routes.post("/createClientAssociations", async(req, res) => {
     }
 })
 
-routes.post("/createClient", async (req, res) => {
+routes.post("/createClient", CEO_CFO_ADMIN, async (req, res) => {
   const resultPayload = await db.sequelize.transaction(async (t) => {
     try {
       let value = req.body;
