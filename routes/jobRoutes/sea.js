@@ -1059,6 +1059,39 @@ routes.post("/findJobByNo", async(req, res) => {
   }
 });
 
+// Lightweight search used by "Copy From Existing Job" on the new-job page —
+// find a candidate by job number or client name, then the frontend fetches
+// the full record via /getSEJobById once one is picked.
+routes.get("/searchForCopy", async(req, res) => {
+  try {
+    const q = (req.headers.q || '').trim();
+    if (!q) {
+      return res.json({ status:'success', result:[] });
+    }
+    const where = { operation:req.headers.operation };
+    if (req.headers.companyid) {
+      where.companyId = req.headers.companyid;
+    }
+    where[Op.or] = [
+      { jobNo: { [Op.iLike]: `%${q}%` } },
+      { '$Client.name$': { [Op.iLike]: `%${q}%` } },
+    ];
+    const jobs = await SE_Job.findAll({
+      where,
+      attributes:['id', 'jobNo', 'jobDate', 'pol', 'pod', 'fd'],
+      include:[{ model:Clients, attributes:['name'] }],
+      order:[['createdAt', 'DESC']],
+      limit: 20,
+      subQuery: false,
+    });
+    res.json({status:'success', result:jobs});
+  }
+  catch (error) {
+    console.error(error);
+    res.json({status:'error', result: error.message || error});
+  }
+});
+
 routes.get("/getAllBls", async(req, res) => {
     try {
       const result = await Bl.findAll({
