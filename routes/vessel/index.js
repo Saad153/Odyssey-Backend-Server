@@ -100,7 +100,7 @@ routes.post("/edit", async(req, res) => {
         }
       });
       if(exists){
-        createHistory(req.body.employeeId, 'Vessel', 'Edit', result.name);
+        createHistory(req.body.employeeId, 'Vessel', 'Edit', exists.name);
           res.json({status:'exists', result:exists});
       } else {
           await Vessel.update( {...value, code : parseInt(value.code)},{

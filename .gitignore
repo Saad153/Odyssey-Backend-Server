@@ -12,8 +12,12 @@
 /.next/
 /out/
 
-# production
-/build
+# production - sealed build output only; keep the build script itself
+/build/dist
+
+# runtime licence cache (per-install, signed blob + clock mark)
+odyssey-license.dat
+*.license.dat
 
 # misc
 .DS_Store

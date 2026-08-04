@@ -4,10 +4,10 @@ const { Commodity } = require("../../models");
 const { createHistory } = require('../../functions/history');
 
 routes.post("/create", async(req, res) => {
-    let tempData = {...req.body.data};
-    delete tempData.isHazmat;
-    tempData.isHazmat = req.body.data.isHazmat.length>0?1:0;
     try {
+      let tempData = {...req.body.data};
+      delete tempData.isHazmat;
+      tempData.isHazmat = Array.isArray(req.body.data?.isHazmat) && req.body.data.isHazmat.length>0?1:0;
       const result = await Commodity.create(tempData);
       createHistory(req.body.employeeId, 'Commodity', 'Create', result.name);
       res.json({status:'success', result:result});
@@ -59,10 +59,10 @@ routes.get("/get", async (req, res) => {
 });
 
 routes.post("/edit", async(req, res) => {
-    let tempData = {...req.body.data};
-    delete tempData.isHazmat;
-    tempData.isHazmat = req.body.data.isHazmat.length>0?1:0;
     try {
+      let tempData = {...req.body.data};
+      delete tempData.isHazmat;
+      tempData.isHazmat = Array.isArray(req.body.data?.isHazmat) && req.body.data.isHazmat.length>0?1:0;
       await Commodity.update(tempData,{
         where:{id:tempData.id}
       });

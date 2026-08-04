@@ -14,12 +14,11 @@ const makeAccessList = (data) => {
   return values
 }
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  'qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnm';
+const { JWT_SECRET } = require('../../functions/secrets');
 
 const sessionManager = require('../../functions/sessionManager');
 const { createHistory, getClientIp } = require('../../functions/history');
+const { isBcryptHash, hashPassword, verifyPassword } = require('../../functions/password');
 
 routes.post('/login', async (req, res) => {
   try {
@@ -43,14 +42,17 @@ routes.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // ✅ Password check (NON‑BLOCKING, SAFE)
-    // const validPassword = await bcrypt.compare(password, user.password);
-    // if (!validPassword) {
-    //   return res.status(401).json({ message: 'Invalid credentials' });
-    // }
-    
-    if (password !== user.password) {
+    const validPassword = await verifyPassword(password, user.password);
+    if (!validPassword) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Opportunistic migration: existing rows still hold plaintext passwords.
+    // The first time one of those verifies successfully, upgrade it to a
+    // bcrypt hash so plaintext never has to be re-compared (or re-stored)
+    // again for that account - no bulk migration step needed.
+    if (!isBcryptHash(user.password)) {
+      await user.update({ password: await hashPassword(password) });
     }
 
     // ✅ Minimal, efficient payload
@@ -92,11 +94,10 @@ routes.post('/login', async (req, res) => {
 });
 
 
-// routes.get("/verifyLogin", verify, (req, res) => { res.json({isLoggedIn:true, username:req.body.username}) });
-
-
+// No longer in index.js's PUBLIC_PATHS, so the global `verify` middleware
+// already ran before this handler and would have responded 401 itself for
+// a missing/invalid/expired token - reaching here means req.user is real.
 routes.get("/verifyLogin", (req, res) => {
-  req.user = req.user || { username: 'Unknown' }; // Fallback for safety
   res.json({
     isLoggedIn: true,
     username: req.user.username,

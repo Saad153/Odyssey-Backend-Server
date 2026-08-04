@@ -13,6 +13,15 @@ const requireDesignation = require('../../functions/requireDesignation');
 
 const CEO_CFO_ADMIN = requireDesignation(['CEO', 'CFO', 'admin']);
 
+// Party create/update/list/view is open to every authenticated user, but only
+// these designations may give a party a ledger (a parent account). For anyone
+// else we force the party to be non-GL server-side (strip pAccountName) so the
+// frontend checkbox can never be bypassed - a party that needs a ledger must be
+// set up by accounts (CEO/CFO/admin).
+const LEDGER_DESIGNATIONS = ['ceo', 'cfo', 'admin'];
+const canCreateLedger = (req) =>
+  LEDGER_DESIGNATIONS.includes((req.user?.designation || '').toLowerCase());
+
 const validTypes = [
   "Slot Operator",
   "Buyer",
@@ -104,7 +113,9 @@ routes.post("/createClientAssociations", async(req, res) => {
     }
 })
 
-routes.post("/createClient", CEO_CFO_ADMIN, async (req, res) => {
+routes.post("/createClient", async (req, res) => {
+  // Non-privileged users can only create name-only (non-GL) parties.
+  if (!canCreateLedger(req)) req.body.pAccountName = '';
   const resultPayload = await db.sequelize.transaction(async (t) => {
     try {
       let value = req.body;
@@ -258,7 +269,9 @@ routes.post("/createClientInBulk", CEO_CFO_ADMIN, async(req, res) => {
     }
 });
 
-routes.post("/editClient", CEO_CFO_ADMIN, async (req, res) => {
+routes.post("/editClient", async (req, res) => {
+  // Non-privileged users can edit party details but never touch/add a ledger.
+  if (!canCreateLedger(req)) req.body.pAccountName = '';
   try {
     await db.sequelize.transaction(async (t) => {
     //   console.log("Request Body:", req.body);
@@ -352,7 +365,7 @@ routes.post("/editClient", CEO_CFO_ADMIN, async (req, res) => {
   }
 });
 
-routes.get("/getClients", CEO_CFO_ADMIN, async(req, res) => {
+routes.get("/getClients", async(req, res) => {
     try {
         const result = await Clients.findAll({
             attributes:['id', 'name' , 'person1', 'mobile1', 'person2', 'mobile2', 'telephone1', 'telephone2', 'address1', 'address2', 'createdBy', 'code', 'active', 'types'],
@@ -410,7 +423,7 @@ routes.get("/getClientsbyType", async(req, res) => {
     }
 });
 
-routes.get("/getClientById", CEO_CFO_ADMIN, async(req, res) => {
+routes.get("/getClientById", async(req, res) => {
     try {
         const result = await Clients.findOne({
             where:{id:req.headers.id},

@@ -6,6 +6,16 @@ const { sequelize } = require('../../models');
 const History = require('../../models/History');
 const { createHistory } = require('../../functions/history');
 const requireDesignation = require('../../functions/requireDesignation');
+const { isBcryptHash, hashPassword } = require('../../functions/password');
+
+// The edit form (Components/Layouts/Setup/Employees/CreateOrEdit.js)
+// pre-fills its password field with whatever Employees.password currently
+// holds and resubmits it unchanged unless the admin explicitly types a new
+// one - since that field now holds a bcrypt hash after the first hash/edit,
+// naively re-hashing every submission would hash-of-a-hash the password on
+// every unrelated edit and lock the account out. Only hash values that
+// aren't already a hash (a freshly typed plaintext password).
+const hashIfNeeded = async (pass) => (isBcryptHash(pass) ? pass : hashPassword(pass));
 
 const CEO_CFO_ADMIN = requireDesignation(['CEO', 'CFO', 'admin']);
 
@@ -36,7 +46,7 @@ routes.post("/createEmployee", CEO_CFO_ADMIN, async(req, res) => {
                 fatherName:req.body.values.fatherName,
                 email:req.body.values.email,
                 username:req.body.values.userName,
-                password:req.body.values.pass,
+                password:await hashIfNeeded(req.body.values.pass),
                 contact:req.body.values.phone,
                 address:req.body.values.address,
                 cnic:req.body.values.cnic,
@@ -71,7 +81,7 @@ routes.post("/editEmployee", CEO_CFO_ADMIN, async(req, res) => {
             fatherName:req.body.values.fatherName,
             email:req.body.values.email,
             username:req.body.values.userName,
-            password:req.body.values.pass,
+            password:await hashIfNeeded(req.body.values.pass),
             contact:req.body.values.phone,
             address:req.body.values.address,
             cnic:req.body.values.cnic,

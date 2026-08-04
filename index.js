@@ -189,8 +189,11 @@ const destinations = require('./routes/destinations');
 const airports = require('./routes/airports');
 const fiscalYearRoutes = require('./routes/fiscalYears');
 const reconciliationRoutes = require('./routes/reconciliation');
+const licenseRoutes = require('./routes/license');
 const verify = require('./functions/tokenVerification');
 const { fiscalYearContextMiddleware } = require('./functions/fiscalYearContext');
+const licenseClient = require('./functions/license/client');
+const { enforceLicense } = require('./functions/license/middleware');
 
 /* -------------------- ASSOCIATIONS (SIDE EFFECTS) -------------------- */
 require('./functions/Associations/jobAssociations/seaExport');
@@ -214,7 +217,6 @@ app.get('/', (req, res) => {
 const PUBLIC_PATHS = [
   '/authRoutes/login',
   '/authRoutes/register',
-  '/authRoutes/verifyLogin',
   '/companies/getAllCompanies',
   // Not actually public: gated by its own short-lived, single-invoice print
   // token (see functions/printToken.js) instead of a login session, since
@@ -234,6 +236,13 @@ app.use((req, res, next) => {
 // from anywhere in the request's async chain (see functions/fiscalYearContext.js)
 // without threading it through every route/Sequelize call by hand.
 app.use(fiscalYearContextMiddleware);
+
+// Licence kill-switch: once the cloud licence server marks this install
+// suspended and the 15-day warning window elapses, every write below is
+// rejected with 423 while reads and invoice printing keep working. Placed
+// after auth so req.user exists and login/logout stay usable (allow-listed
+// inside enforceLicense). See functions/license/.
+app.use(enforceLicense);
 
 /* -------------------- AUTHENTICATED ROUTES -------------------- */
 app.get('/getUser', (req, res) => {
@@ -265,6 +274,7 @@ app.use('/destinations', destinations);
 app.use('/airports', airports);
 app.use('/fiscalYears', fiscalYearRoutes);
 app.use('/reconciliation', reconciliationRoutes);
+app.use('/license', licenseRoutes);
 
 /* -------------------- ERROR HANDLER -------------------- */
 app.use((err, req, res, next) => {
@@ -286,6 +296,26 @@ async function start() {
     // ✅ DO NOT sync schemas under load
     await db.sequelize.authenticate();
 
+    // First-load seeding: create a default admin account on a fresh install so
+    // the system is ready to log into from the start. No-op once users exist.
+    try {
+      const { seedAdminUser } = require('./functions/seedAdmin');
+      const seed = await seedAdminUser();
+      if (seed.created) {
+        console.log(`[seed] created initial admin user '${seed.username}'`);
+      }
+    } catch (err) {
+      console.error('[seed] admin seeding failed:', err.message);
+    }
+
+    // Bring up the licence client (loads cached licence, does first heartbeat,
+    // then polls). Never let a licensing hiccup stop the server from booting -
+    // computeState() falls back to the bootstrap grace / cached licence.
+    licenseClient.setAppVersion(require('./package.json').version);
+    await licenseClient.start().catch(err =>
+      console.error('[license] start failed:', err.message)
+    );
+
     const server = http.createServer(app);
 
     // ✅ Critical socket tuning
@@ -302,6 +332,13 @@ async function start() {
   }
 }
 
-start();
+// Only auto-start the listener when this file is run directly (`node index.js`).
+// Test files `require('../index')` to get the Express `app` for supertest,
+// which starts its own ephemeral server per test - without this guard that
+// require would ALSO try to bind the real dev port and call process.exit(1)
+// on a failed authenticate(), fighting with an actual running dev server.
+if (require.main === module) {
+  start();
+}
 
 module.exports = app;

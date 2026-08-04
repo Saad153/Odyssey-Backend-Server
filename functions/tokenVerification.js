@@ -1,9 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { LRUCache } = require('lru-cache');
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  'qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnm';
+const { JWT_SECRET } = require('./secrets');
 
 // Cache decoded tokens (CRITICAL for performance)
 const tokenCache = new LRUCache({
@@ -111,17 +109,22 @@ function verify(req, res, next) {
   // ✅ FAST PATH — no crypto
   const cachedUser = tokenCache.get(token);
   if (cachedUser) {
-    // Ensure the cached token still matches the session for this user
+    // Ensure the cached token still matches the current session for this
+    // user. This must reject when sToken is falsy too (not just when it
+    // differs from `token`) - a falsy sToken means the session was cleared
+    // (e.g. logout), and letting that through was a real bug: a token used
+    // at least once in the last 60s stayed valid via this cache even after
+    // logout, since the old check only fired on a *mismatched* session.
     const sToken = sessionManager.getSessionToken(cachedUser.id);
-    if (sToken && sToken !== token) {
+    if (sToken !== token) {
       if (isLogoutRoute) {
-        // Stale session but token decodes fine — still let logout through
+        // Stale/cleared session but token decodes fine — still let logout through
         req.user = cachedUser;
         return next();
       }
       return res.status(401).json({
         isLoggedIn: false,
-        message: 'User logged in elsewhere',
+        message: sToken ? 'User logged in elsewhere' : 'Session expired',
       });
     }
     req.user = cachedUser;

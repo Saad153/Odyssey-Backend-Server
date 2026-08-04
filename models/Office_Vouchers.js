@@ -6,7 +6,7 @@ module.exports = ( sequelize, DataTypes ) => {
         descriptive:  { type:DataTypes.BOOLEAN},
         preparedBy:   { type:DataTypes.STRING },
         approved:     { type:DataTypes.BOOLEAN},
-        CompanyId:    { type:DataTypes.BOOLEAN},
+        CompanyId:    { type:DataTypes.INTEGER},
         reverseAmount:{ type:DataTypes.DOUBLE,  defaultValue:0.0  },
         paid:         { type:DataTypes.STRING,  defaultValue:"0"},
     });

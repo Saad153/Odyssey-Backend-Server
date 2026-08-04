@@ -442,7 +442,7 @@ routes.post("/sendEmail", async(req, res) => {
 
     const historyNote = `Email Sent (${toList.join(', ')})${ccList.length ? ` [CC: ${ccList.length}]` : ''}${bccList.length ? ` [BCC: ${bccList.length}]` : ''}`;
     createHistory(employeeId, 'Invoice', historyNote, invoice.invoice_No);
-    recordEmailUsage([...toList, ...ccList, ...bccList]);
+    await recordEmailUsage([...toList, ...ccList, ...bccList]);
     res.json({ status:'success' });
   }
   catch (error) {
