@@ -1,3 +1,4 @@
+const { nextVoucherNo } = require("../../functions/voucherNumber");
 const moment = require("moment");
 const db = require("../../models");
 const Sequelize = require('sequelize');
@@ -1088,10 +1089,13 @@ routes.post("/createOpeningBalances", async(req, res) => {
 
   try {
     const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
-    const check = await Vouchers.findOne({
-      order:[["voucher_No","DESC"]],
-      attributes:["voucher_No"],
-      where:{ vType: req.body.vType}
+    // Was scoped by vType alone - no company, no fiscal year - so opening
+    // balance vouchers drew their number from a pool shared across all three
+    // companies and every year. Now scoped like every other numbering site.
+    const nextNo = await nextVoucherNo(Vouchers, {
+      vType: req.body.vType,
+      CompanyId: req.body.companyId,
+      suffix: fiscalYear.suffix,
     });
     const result = await Vouchers.create({
       ...req.body,
@@ -1099,14 +1103,14 @@ routes.post("/createOpeningBalances", async(req, res) => {
         ? moment().startOf('year').month(5).endOf('month')
         : moment().add(1, 'year').startOf('year').month(5).endOf('month'),
       CompanyId:req.body.companyId,
-      voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
+      voucher_No: nextNo,
       voucher_Id: `${
         req.body.companyId == 1 ?
           "SNS" :
           req.body.companyId == 2?
               "CLS" : "ACS"
           }-${req.body.vType}-${
-          check == null ? 1 : parseInt(check.voucher_No) + 1
+          nextNo
           }/${fiscalYear.suffix
       }`,
       FiscalYearId: fiscalYear.id,

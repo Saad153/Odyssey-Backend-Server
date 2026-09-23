@@ -27,6 +27,43 @@ routes.get("/viewDestinations", async (req, res) => {
     }
 });
 
+/*
+ * Type-ahead source for the Final Destination picker on air jobs. Same reasoning
+ * as /ports/search: /viewDestinations returns all 140,848 rows (~5.9 MB) and the
+ * job screen was fetching it on every open.
+ *
+ * Destinations are keyed by name - that is what the job stores - so `id` here is
+ * the name itself.
+ */
+routes.get("/search", async (req, res) => {
+    try {
+        const { search = "", id = "" } = req.query;
+        const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 100);
+
+        if (id) {
+            const row = await Destinations.findOne({ where: { name: id } });
+            return res.json({ status: "success", result: row ? [row] : [] });
+        }
+
+        const term = String(search).trim();
+        // Below 2 characters a trigram index cannot help, so refuse rather than
+        // sequentially scan 140k rows.
+        if (term.length < 2) {
+            return res.json({ status: "success", result: [] });
+        }
+
+        const rows = await Destinations.findAll({
+            where: { name: { [Op.iLike]: `%${term}%` } },
+            order: [["name", "ASC"]],
+            limit,
+        });
+        return res.json({ status: "success", result: rows });
+    } catch (error) {
+        console.error(error);
+        return res.json({ status: "error", result: error.message || String(error) });
+    }
+});
+
 routes.get("/get", async (req, res) => {
     try {
         const { page = 1, limit = 50, search = "" } = req.query;

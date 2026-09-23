@@ -3,13 +3,14 @@ const {
   Stamps, Job_notes, Loading_Program, Bl,
   Delivery_Order, Item_Details, Dimensions,
 } = require("../../functions/Associations/jobAssociations/seaExport");
+const { Awbl } = require("../../functions/Associations/awblAssociations");
 const { Charge_Head } = require("../../functions/Associations/incoiceAssociations");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
 const { Employees } = require("../../functions/Associations/employeeAssociations");
 const { Clients, Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require("../../functions/Associations/vesselAssociations");
-const { Commodity, Vessel, Charges, Invoice }=require("../../models");
+const { Commodity, Vessel, Charges, Invoice, sequelize }=require("../../models");
 const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
@@ -17,6 +18,60 @@ const moment = require("moment");
 const { format } = require("morgan");
 const { createHistory } = require("../../functions/history");
 const Op = Sequelize.Op;
+
+/**
+ * Rule 3 helper: on an air EXPORT job the MAWB must come from registered stock
+ * (Setup > AWB Numbers), belong to the job's own airline, and not already be
+ * consumed by a different job.
+ *
+ * This lives on the server because the field cannot be relied on to police
+ * itself: a number typed straight in, or submitted before the picker had
+ * resolved, reaches this route regardless of what the UI shows. Every BL save
+ * funnels through here, so it is the only place the rule genuinely holds.
+ *
+ * AE only. Import MAWBs are issued by the origin carrier, not drawn from stock
+ * held here - every one of the 10,146 registered numbers belongs to an AE job -
+ * so applying this to AI would block the first inbound BL anyone records.
+ *
+ * @returns a message explaining the rejection, or null when acceptable.
+ */
+const checkMawbIsRegistered = async ({ mbl, jobId }) => {
+  const digits = String(mbl ?? "").replace(/\D/g, "");
+  if (!digits) return null; // a blank MAWB is left to the existing rules
+
+  const job = await SE_Job.findOne({
+    where: { id: jobId },
+    attributes: ["id", "jobNo", "companyId", "airLineId"],
+  });
+  if (!job) return null; // no job to validate against; other checks cover this
+
+  // One pool, shared by the group - no company filter. Stock is allocated to
+  // Sea Net / Air Cargo jointly and either can use any number, so the only
+  // questions are whether it is registered, whether it belongs to this job's
+  // airline, and whether another job already has it.
+  const awbl = await Awbl.findOne({
+    where: { awbNumber: digits },
+    include: [{ model: Clients, as: "Airline", attributes: ["name", "code"], required: false }],
+  });
+
+  const shown = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : digits;
+
+  if (!awbl) {
+    return `MAWB ${shown} is not registered. Add it under Setup > AWB Numbers before using it on a job.`;
+  }
+  if (String(awbl.AirlineId) !== String(job.airLineId)) {
+    const owner = awbl.Airline ? `${awbl.Airline.name} (${awbl.Airline.code})` : "another airline";
+    return `MAWB ${shown} belongs to ${owner}, which is not this job's airline. Use a number registered to the job's airline.`;
+  }
+  if (awbl.SEJobId && String(awbl.SEJobId) !== String(jobId)) {
+    const other = await SE_Job.findOne({
+      where: { id: awbl.SEJobId },
+      attributes: ["jobNo"],
+    });
+    return `MAWB ${shown} is already used on job ${other ? other.jobNo : awbl.SEJobId}.`;
+  }
+  return null;
+};
 
 const getJob = (id) => {
   const finalResult = SE_Job.findOne({
@@ -351,7 +406,21 @@ routes.post("/edit", async (req, res) => {
     return result;
   };
 
+  // Declared out here so the catch can still reach the transaction, but
+  // opened INSIDE the try: this handler is an async function and Express 4
+  // does not catch rejections from one, so anything thrown before the try
+  // (e.g. the pool being exhausted when opening the transaction) would leave
+  // the request hanging with no response instead of returning an error.
+  let t;
+  let committed = false;
+
   try {
+    // The job row and its equipment rows are one logical edit and must not be
+    // allowed to half-apply: the equipment update below is a full destroy +
+    // re-create, so a failure partway through would otherwise leave the job
+    // with no containers at all.
+    t = await sequelize.transaction();
+
     let data = req.body.data;
     data.customCheck = data.customCheck.toString();
     data.transportCheck = data.transportCheck.toString();
@@ -361,17 +430,36 @@ routes.post("/edit", async (req, res) => {
       where: {
         id: data.id,
       },
+      transaction: t,
     });
 
-    await SE_Job.update(data, { where: { id: data.id } }).catch((x) => console.error(x.message));
-    await SE_Equipments.destroy({ where: { SEJobId: data.id } }).catch((x) => console.error(x.message));
-    await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id)).catch((x) => console.error(x.message));
+    // These three writes used to each carry a .catch(x => console.error(...))
+    // while the handler still returned status:"success" unconditionally. That
+    // made a *rejected* edit look like it had saved: most often the fiscal-year
+    // guard (functions/Associations/fiscalYearAssociations) refusing a write to
+    // a job whose fiscal year is locked, or is not the one the user currently
+    // has selected. The user got "Job Updated!", the row never changed, and the
+    // equipment destroy/re-create still ran even though the job update hadn't.
+    // Let these throw so the catch below reports the real reason and rolls back.
+    await SE_Job.update(data, { where: { id: data.id }, transaction: t });
+    await SE_Equipments.destroy({ where: { SEJobId: data.id }, transaction: t });
+    await SE_Equipments.bulkCreate(createEquip(data.equipments, data.id), { transaction: t });
+
+    await t.commit();
+    committed = true;
+
     createHistory(req.body.employeeId, 'Job', 'Edit', data.jobNo);
     return res.json({ status: "success", result: await getJob(data.id) });
 
   } catch (error) {
+    // Only roll back if the transaction was actually opened and we never got
+    // as far as committing - rolling back an already-committed (or never
+    // started) transaction throws and would mask the real error.
+    if (t && !committed) {
+      await t.rollback().catch(() => {});
+    }
     console.error(error);
-    return res.json({ status: "error", result: error.message });
+    return res.json({ status: "error", result: error.message || String(error) });
   }
 });
 
@@ -740,6 +828,16 @@ routes.post("/createBl", async (req, res) => {
     }
 
     /**
+     * 🔴 Rule 3: on AE the MAWB must be registered stock for the job's airline
+     */
+    if (data.operation === "AE") {
+      const problem = await checkMawbIsRegistered({ mbl: data.mbl, jobId: data.SEJobId });
+      if (problem) {
+        return res.json({ status: "warning", result: problem });
+      }
+    }
+
+    /**
      * ✅ Original logic (UNCHANGED)
      */
     let obj = {
@@ -924,6 +1022,36 @@ routes.post("/editBl", async (req, res) => {
           status: "warning",
           result: `MBL Already Exists in Job: ${job.jobNo}`,
         });
+      }
+    }
+
+    /**
+     * 🔴 Rule 3: on AE the MAWB must be registered stock for the job's airline,
+     * but ONLY when it is actually being changed.
+     *
+     * 75 air export BLs predate the register and carry a number that was never
+     * added to it (bad check digit, wrong length, or a duplicate - the ones on
+     * the correction sheet). Validating unconditionally would make those BLs
+     * uneditable for any reason at all: someone fixing a consignee would be
+     * stopped by an unrelated MAWB complaint. Only a change to the MAWB itself
+     * has to satisfy the rule.
+     */
+    if (data.operation === "AE") {
+      const current = await Bl.findOne({
+        where: { id: data.id },
+        attributes: ["mbl", "SEJobId"],
+      });
+      const before = String(current?.mbl ?? "").replace(/\D/g, "");
+      const after = String(data.mbl ?? "").replace(/\D/g, "");
+
+      if (before !== after) {
+        const problem = await checkMawbIsRegistered({
+          mbl: data.mbl,
+          jobId: data.SEJobId || current?.SEJobId,
+        });
+        if (problem) {
+          return res.json({ status: "warning", result: problem });
+        }
       }
     }
 

@@ -1,3 +1,4 @@
+const { nextVoucherNo } = require("../../functions/voucherNumber");
 const { Charge_Head, Invoice, Invoice_Losses, Invoice_Transactions } = require("../../functions/Associations/incoiceAssociations");
 const { SE_Job, SE_Equipments, Bl, Container_Info ,Commodity} = require("../../functions/Associations/jobAssociations/seaExport");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
@@ -7,7 +8,7 @@ const { resolveSelectedFiscalYear } = require("../../functions/Associations/fisc
 const { Client_Associations } = require("../../functions/Associations/clientAssociation");
 const { Voyage } = require('../../functions/Associations/vesselAssociations');
 const { Clients } = require("../../functions/Associations/clientAssociation");
-const { Accounts, Vessel, Transaction, Email_Suggestion } = require("../../models");
+const { Accounts, Vessel, Transaction, Email_Suggestion, sequelize } = require("../../models");
 const routes = require('express').Router();
 const Sequelize = require('sequelize');
 const moment = require("moment");
@@ -814,36 +815,88 @@ routes.post("/addInvoiceNote", async(req, res) => {
 });
 
 routes.post("/saveChargeHeades", async(req, res) => {
+  const t = await sequelize.transaction();
+  let committed = false;
   try {
-    await Charge_Head.destroy({where:{id:req.body.deleteList}})
-    await SE_Job.update({exRate:req.body.exRate}, {where:{id:req.body.id}})
-    await Promise.all([
-      req.body.charges.forEach((x) => {
-        Charge_Head.upsert(x);
-      })
-    ]);
+    const jobId = req.body.id;
+    const charges = Array.isArray(req.body.charges) ? req.body.charges : [];
+
+    await Charge_Head.destroy({where:{id:req.body.deleteList}, transaction: t})
+    await SE_Job.update({exRate:req.body.exRate}, {where:{id:jobId}, transaction: t})
+
+    // Was `Promise.all([ charges.forEach(x => { Charge_Head.upsert(x) }) ])`,
+    // which awaits nothing at all: forEach returns undefined, so Promise.all
+    // resolved on [undefined] immediately while the upserts ran unwatched. Any
+    // one of them rejecting became an unhandled rejection and crashed the
+    // process. Same defect as /saveHeadesNew below.
+    for (const x of charges) {
+      await Charge_Head.upsert(
+        { ...x, SEJobId: x.SEJobId || jobId },
+        { transaction: t }
+      );
+    }
+
+    await t.commit();
+    committed = true;
+
     createHistory(req.body.employeeId, 'Invoice', 'Round Off', req.body.invoice_No);
     res.json({status:'success'});
   }
   catch (error) {
+    if (!committed) await t.rollback().catch(() => {});
+    console.error(error)
     res.json({status:'error', result: error.message || error });
   }
 });
 
 // This api saves the heads added on the related Job
 routes.post("/saveHeadesNew", async(req, res) => {
+  const t = await sequelize.transaction();
+  let committed = false;
   try {
-    req?.body?.deleteList != undefined? await Charge_Head.destroy({where:{id:req.body.deleteList}}) : null;
-    req?.body?.id != undefined? await SE_Job.update({exRate:req.body.exRate}, {where:{id:req.body.id}}) : null;
+    const jobId = req.body.id;
+    const charges = Array.isArray(req.body.charges) ? req.body.charges : [];
 
-    let data;
-    await req.body.charges.forEach(async(x) => {
-      data = await Charge_Head.upsert(x);
-    });
+    req?.body?.deleteList != undefined
+      ? await Charge_Head.destroy({where:{id:req.body.deleteList}, transaction: t})
+      : null;
+    jobId != undefined
+      ? await SE_Job.update({exRate:req.body.exRate}, {where:{id:jobId}, transaction: t})
+      : null;
+
+    // Every row must know which job it belongs to. This endpoint is "save the
+    // charges for job <id>", so a row that arrives without SEJobId is filled in
+    // from the request rather than rejected - the UI can drop it when a charge
+    // is added before the job finishes loading, and the row is otherwise valid.
+    const missingJob = charges.filter((x) => !x.SEJobId && !jobId);
+    if (missingJob.length) {
+      await t.rollback();
+      return res.json({
+        status: 'error',
+        result: `${missingJob.length} charge row(s) are not attached to a job. Reopen the job and try again.`,
+      });
+    }
+
+    // for...of, NOT charges.forEach(async ...). forEach ignores the promise its
+    // callback returns, so this route used to reply "success" before a single
+    // row had been written, and any rejection surfaced later with nothing
+    // awaiting or catching it - which Node turns into a process-level crash.
+    // That is exactly how a charge row missing SEJobId took the server down.
+    for (const x of charges) {
+      await Charge_Head.upsert(
+        { ...x, SEJobId: x.SEJobId || jobId },
+        { transaction: t }
+      );
+    }
+
+    await t.commit();
+    committed = true;
+
     createHistory(req.body.employeeId, 'Invoice', 'Add Note', req.body.invoice_No);
     res.json({status:'success'});
   }
   catch (error) {
+    if (!committed) await t.rollback().catch(() => {});
     console.error(error)
     res.json({status:'error', result: error.message || error });
   }
@@ -1086,10 +1139,10 @@ routes.post("/openingInvoice", async(req, res) => {
     }
     const invoices = await Invoice.create(invoice);
 
-    const check = await Vouchers.findOne({
-      order: [["voucher_No", "DESC"]],
-      attributes: ["voucher_No"],
-      where: { vType: invoices.dataValues.payType=="Recievable"?"SI":"PI", CompanyId: invoices.dataValues.companyId }
+    const nextNo = await nextVoucherNo(Vouchers, {
+      vType: invoices.dataValues.payType=="Recievable"?"SI":"PI",
+      CompanyId: invoices.dataValues.companyId,
+      suffix: fiscalYear.suffix,
     });
 
     vouchers = {
@@ -1108,8 +1161,8 @@ routes.post("/openingInvoice", async(req, res) => {
       partyName: invoices.dataValues.party_Name,
       createdAt: invoices.dataValues.createdAt,
       updatedAt: invoices.dataValues.createdAt,
-      voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
-      voucher_Id: `${invoices.dataValues.companyId == 1 ? "SNS" : invoices.dataValues.companyId == 2 ? "CLS" : "ACS"}-${invoices.dataValues.payType=="Recievable"?"OI":"OB"}-${check == null ? 1 : parseInt(check.voucher_No) + 1}/${invoiceYear}`
+      voucher_No: nextNo,
+      voucher_Id: `${invoices.dataValues.companyId == 1 ? "SNS" : invoices.dataValues.companyId == 2 ? "CLS" : "ACS"}-${invoices.dataValues.payType=="Recievable"?"OI":"OB"}-${nextNo}/${invoiceYear}`
     }    
 
     const voucher = await Vouchers.create({
@@ -1359,18 +1412,18 @@ routes.post("/approve", async(req, res) => {
       partyName: invoice.dataValues.party_Name,
     }
 
-    const check = await Vouchers.findOne({
-      order: [["voucher_No", "DESC"]],
-      attributes: ["voucher_No"],
-      where: { vType: vouchers.vType, CompanyId: invoice.dataValues.companyId }
+    const nextNo = await nextVoucherNo(Vouchers, {
+      vType: vouchers.vType,
+      CompanyId: invoice.dataValues.companyId,
+      suffix: fiscalYear.suffix,
     });
 
     const voucher = await Vouchers.create({
       ...vouchers,
-      voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
+      voucher_No: nextNo,
       voucher_Id: `${invoice.dataValues.companyId == 1 ? "SNS" : invoice.dataValues.companyId == 2 ? "CLS" : "ACS"}
       -${vouchers.vType}
-      -${check == null ? 1 : parseInt(check.voucher_No) + 1}
+      -${nextNo}
       /${fiscalYear.suffix}`,
       FiscalYearId: fiscalYear.id,
     })
@@ -1888,20 +1941,24 @@ routes.post("/createBulkInvoices", async (req, res) => {
       x.ChildAccountId = resultC?resultC.dataValues.ChildAccountId:resultV.dataValues.ChildAccountId
       x.narration = req.body.invoice_No 
     })
-    const check = await Vouchers.findOne({
-      order: [["voucher_No", "DESC"]],
-      attributes: ["voucher_No"],
-      where: { vType: voucher.vType, CompanyId: voucher.CompanyId }
+    // This bulk path has no resolved fiscal year of its own (it runs with
+    // fiscalYearCheck:false), so it derives the suffix from the date the same
+    // way it always has - July onwards belongs to the next year's book.
+    const bulkSuffix = moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY');
+    const nextNo = await nextVoucherNo(Vouchers, {
+      vType: voucher.vType,
+      CompanyId: voucher.CompanyId,
+      suffix: bulkSuffix,
     });
     const resultTwo = await Vouchers.create({
       ...voucher,
       partyId: req.body.party_Id,
       partyName: req.body.party_Name,
-      voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
+      voucher_No: nextNo,
       voucher_Id: `${voucher.CompanyId == 1 ? "SNS" : voucher.CompanyId == 2 ? "CLS" : "ACS"
       }-${voucher.vType
-      }-${check == null ? 1 : parseInt(check.voucher_No) + 1
-      }/${moment().month() >= 6 ? moment().add(1, 'year').format('YY') : moment().format('YY')}`,
+      }-${nextNo
+      }/${bulkSuffix}`,
     }, { fiscalYearCheck: false })
     const resultThree = await Invoice_Transactions.create({
       gainLoss: result.dataValues.payType=="Receivable"?(result.dataValues.total - result.dataValues.recieved):(result.dataValues.total - result.dataValues.paid),

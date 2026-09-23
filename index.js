@@ -189,6 +189,7 @@ const destinations = require('./routes/destinations');
 const airports = require('./routes/airports');
 const fiscalYearRoutes = require('./routes/fiscalYears');
 const reconciliationRoutes = require('./routes/reconciliation');
+const awblRoutes = require('./routes/awbl');
 const licenseRoutes = require('./routes/license');
 const verify = require('./functions/tokenVerification');
 const { fiscalYearContextMiddleware } = require('./functions/fiscalYearContext');
@@ -204,6 +205,7 @@ require('./functions/Associations/NotificationAssociation');
 require('./functions/Associations/taskAssociation');
 require('./functions/Associations/vesselAssociations');
 require('./functions/Associations/fiscalYearAssociations');
+require('./functions/Associations/awblAssociations');
 
 /* -------------------- BASIC PUBLIC ROUTES -------------------- */
 app.get('/', (req, res) => {
@@ -274,6 +276,7 @@ app.use('/destinations', destinations);
 app.use('/airports', airports);
 app.use('/fiscalYears', fiscalYearRoutes);
 app.use('/reconciliation', reconciliationRoutes);
+app.use('/awbl', awblRoutes);
 app.use('/license', licenseRoutes);
 
 /* -------------------- ERROR HANDLER -------------------- */
@@ -283,6 +286,23 @@ app.use((err, req, res, next) => {
     status: 'error',
     error: err.message || 'Internal Server Error',
   });
+});
+
+/* -------------------- CRASH GUARD -------------------- */
+// Since Node 15 an unhandled promise rejection terminates the process. This
+// codebase still has ~14 `array.forEach(async x => { await something })` loops:
+// forEach discards the promise its callback returns, so nothing awaits it and
+// nothing catches it, and the surrounding try/catch has already exited by the
+// time it settles. One bad payload - a charge row missing its SEJobId, say -
+// therefore took the entire server down for every user.
+//
+// Logging and staying up is the pre-Node-15 behaviour and the right trade here:
+// a single malformed request must not be able to end the process. It is a net,
+// not a fix - each logged rejection is a real bug and should be traced back to
+// the route that produced it.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection] a promise rejected with nobody listening:');
+  console.error(reason instanceof Error ? reason.stack : reason);
 });
 
 /* -------------------- SERVER CREATION -------------------- */

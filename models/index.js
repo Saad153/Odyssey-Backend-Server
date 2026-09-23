@@ -62,6 +62,7 @@ require('../functions/Associations/NotificationAssociation');
 require('../functions/Associations/taskAssociation');
 require('../functions/Associations/vesselAssociations');
 require('../functions/Associations/fiscalYearAssociations');
+require('../functions/Associations/awblAssociations');
 
 // Sync models with the database to create tables
 // Exposed as db.syncPromise so anything requiring this module (scripts,

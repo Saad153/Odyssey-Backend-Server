@@ -33,6 +33,58 @@ routes.get("/viewPorts", async (req, res) => {
     }
 });
 
+/*
+ * Type-ahead source for the Port of Loading / Discharge / Final Destination
+ * pickers on the job screen.
+ *
+ * /viewPorts above returns all 157,879 rows - about 12.6 MB of JSON - which the
+ * job screen was downloading every time it opened. This returns at most `limit`
+ * matches instead.
+ *
+ * Deliberately findAll, not findAndCountAll: the picker never shows a total, and
+ * the COUNT half of findAndCountAll is the expensive part (~400 ms) because it
+ * cannot stop early the way a LIMIT can.
+ *
+ * `id` resolves a single port by its exact code, so an already-saved job can
+ * label the value it holds without fetching anything else.
+ */
+routes.get("/search", async (req, res) => {
+    try {
+        const { search = "", id = "" } = req.query;
+        const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 100);
+
+        if (id) {
+            const row = await Ports.findOne({ where: { portId: id } });
+            return res.json({ status: "success", result: row ? [row] : [] });
+        }
+
+        const term = String(search).trim();
+        // pg_trgm indexes are built from 3-character trigrams, so a 1-2
+        // character pattern cannot use them and falls back to a full scan of
+        // 157k rows. The picker asks for at least 2 before searching; this is
+        // the backstop for anything that does not.
+        if (term.length < 2) {
+            return res.json({ status: "success", result: [] });
+        }
+
+        const rows = await Ports.findAll({
+            where: {
+                [Op.or]: [
+                    { portId: { [Op.iLike]: `%${term}%` } },
+                    { portName: { [Op.iLike]: `%${term}%` } },
+                    { portCountry: { [Op.iLike]: `%${term}%` } },
+                ],
+            },
+            order: [["portName", "ASC"]],
+            limit,
+        });
+        return res.json({ status: "success", result: rows });
+    } catch (error) {
+        console.error(error);
+        return res.json({ status: "error", result: error.message || String(error) });
+    }
+});
+
 routes.get("/get", async (req, res) => {
     try {
         const { page = 1, limit = 50, search = "" } = req.query;

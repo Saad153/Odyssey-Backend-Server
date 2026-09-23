@@ -36,6 +36,10 @@ yarn-error.log*
 # DB backups (contain real data, never commit)
 /backups
 
+# Correction lists produced by scripts/backfillAwbl.js - real job data, meant
+# to be forwarded to operations, not committed
+awbl-corrections-*.csv
+
 # vercel
 .vercel
 

@@ -8,6 +8,9 @@ const { Clients, Client_Associations } = require("../../functions/Associations/c
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
 const { Voucher_Heads } = require('../../functions/Associations/voucherAssociations');
 const { createHistory } = require('../../functions/history');
+const {
+  OPERATIONAL_REFS, FINANCIAL_REFS, OUTSTANDING_SQL, PAID_TOLERANCE,
+} = require('../../functions/partyMerge');
 const { types } = require('pg');
 const requireDesignation = require('../../functions/requireDesignation');
 
@@ -584,6 +587,160 @@ routes.get("/getClientAssociations", async(req, res) => {
     catch (error) {
         console.error(error)
         res.json({status:'error', result:error});
+    }
+});
+
+/* -------------------------------------------------------------------------
+ * REPLACE ONE PARTY WITH ANOTHER
+ *
+ * For parties that should never have existed (a duplicate, a typo) but are
+ * already referenced by jobs, BLs or AWB stock, so they cannot simply be
+ * deleted.
+ *
+ * /mergeImpact reports what points at a party. /mergeParty repoints the
+ * operational references and optionally removes the old party.
+ *
+ * The merge REFUSES while any invoice, voucher, transaction or charge head
+ * names the party: those are accounting records, and moving them would rewrite
+ * who owes money. Unpaid invoices are listed by name so they can be settled or
+ * corrected first - see functions/partyMerge.js for why "unpaid" is
+ * total - GREATEST(paid, recieved) and not the more obvious subtraction.
+ * ---------------------------------------------------------------------- */
+
+const buildImpact = async (partyId, transaction) => {
+    const id = String(partyId);
+    const operational = [];
+    const financial = [];
+
+    for (const ref of OPERATIONAL_REFS) {
+        const [[row]] = await db.sequelize.query(
+            `SELECT count(*)::int AS n FROM "${ref.table}" WHERE "${ref.column}" = :id`,
+            { replacements: { id: Number(id) }, transaction });
+        if (row.n) operational.push({ ...ref, count: row.n });
+    }
+
+    for (const ref of FINANCIAL_REFS) {
+        // These columns are varchar, so the id is compared as text.
+        const [[row]] = await db.sequelize.query(
+            `SELECT count(*)::int AS n FROM "${ref.table}" WHERE "${ref.column}" = :id`,
+            { replacements: { id }, transaction });
+        if (row.n) financial.push({ ...ref, count: row.n });
+    }
+
+    // The actionable list: invoices still carrying a balance.
+    const [unpaid] = await db.sequelize.query(`
+        SELECT "invoice_No", "payType", "party_Name", total, paid, recieved,
+               ROUND(${OUTSTANDING_SQL}, 2) AS outstanding, "createdAt"::date AS "on"
+          FROM "Invoices"
+         WHERE "party_Id" = :id AND ${OUTSTANDING_SQL} > ${PAID_TOLERANCE}
+         ORDER BY "createdAt"
+    `, { replacements: { id }, transaction });
+
+    return {
+        operational,
+        financial,
+        unpaid,
+        operationalTotal: operational.reduce((n, r) => n + r.count, 0),
+        financialTotal: financial.reduce((n, r) => n + r.count, 0),
+        canMerge: financial.length === 0,
+    };
+};
+
+routes.get("/mergeImpact", CEO_CFO_ADMIN, async (req, res) => {
+    try {
+        const id = req.query.id || req.headers.id;
+        if (!id) return res.json({ status: 'error', result: 'Party id is required.' });
+
+        const party = await Clients.findOne({ where: { id } });
+        if (!party) return res.json({ status: 'error', result: 'That party no longer exists.' });
+
+        const impact = await buildImpact(id);
+        return res.json({
+            status: 'success',
+            result: {
+                party: { id: party.id, name: party.name, code: party.code, types: party.types },
+                ...impact,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        return res.json({ status: 'error', result: error.message || String(error) });
+    }
+});
+
+routes.post("/mergeParty", CEO_CFO_ADMIN, async (req, res) => {
+    const t = await db.sequelize.transaction();
+    let committed = false;
+    try {
+        const { fromId, toId, deleteAfter = true, employeeId } = req.body;
+
+        if (!fromId || !toId) {
+            await t.rollback();
+            return res.json({ status: 'error', result: 'Both the party to replace and its replacement are required.' });
+        }
+        if (String(fromId) === String(toId)) {
+            await t.rollback();
+            return res.json({ status: 'error', result: 'A party cannot be replaced by itself.' });
+        }
+
+        const from = await Clients.findOne({ where: { id: fromId }, transaction: t });
+        const to = await Clients.findOne({ where: { id: toId }, transaction: t });
+        if (!from || !to) {
+            await t.rollback();
+            return res.json({ status: 'error', result: 'One of those parties no longer exists.' });
+        }
+
+        // Re-checked inside the transaction, not trusted from whatever the
+        // screen last saw: an invoice could have been raised against this party
+        // between the impact check and the confirmation.
+        const impact = await buildImpact(fromId, t);
+        if (!impact.canMerge) {
+            await t.rollback();
+            return res.json({
+                status: 'error',
+                result: `"${from.name}" has accounting records (` +
+                    impact.financial.map((f) => `${f.count} ${f.label.toLowerCase()}`).join(', ') +
+                    `) and cannot be replaced. Settle or move those first.`,
+                impact,
+            });
+        }
+
+        const moved = [];
+        for (const ref of OPERATIONAL_REFS) {
+            const [, count] = await db.sequelize.query(
+                `UPDATE "${ref.table}" SET "${ref.column}" = :to, "updatedAt" = now() WHERE "${ref.column}" = :from`,
+                { replacements: { to: Number(toId), from: Number(fromId) }, transaction: t });
+            if (count) moved.push({ label: ref.label, count });
+        }
+
+        let deleted = false;
+        if (deleteAfter) {
+            // Only the party row itself. Its ledger association, if any, was
+            // repointed above rather than removed.
+            await Clients.destroy({ where: { id: fromId }, transaction: t });
+            deleted = true;
+        }
+
+        await t.commit();
+        committed = true;
+
+        createHistory(employeeId, 'Party', deleted ? 'Replace & Delete' : 'Replace',
+            `${from.name} (${from.code}) -> ${to.name} (${to.code})`);
+
+        return res.json({
+            status: 'success',
+            result: {
+                from: { id: from.id, name: from.name },
+                to: { id: to.id, name: to.name },
+                moved,
+                movedTotal: moved.reduce((n, r) => n + r.count, 0),
+                deleted,
+            },
+        });
+    } catch (error) {
+        if (!committed) await t.rollback().catch(() => {});
+        console.error(error);
+        return res.json({ status: 'error', result: error.message || String(error) });
     }
 });
 

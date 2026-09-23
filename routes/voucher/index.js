@@ -1,3 +1,4 @@
+const { nextVoucherNo } = require("../../functions/voucherNumber");
 const { Vouchers, Voucher_Heads, Office_Vouchers } = require("../../functions/Associations/voucherAssociations");
 const { resolveSelectedFiscalYear } = require("../../functions/Associations/fiscalYearAssociations");
 const { Child_Account, Parent_Account } = require("../../functions/Associations/accountAssociations");
@@ -160,17 +161,17 @@ routes.post("/voucherCreation", async (req, res) => {
   try {
     console.log("Request Body:",req.body)
     const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
-    const check = await Vouchers.findOne({
-      order: [["voucher_No", "DESC"]],
-      attributes: ["voucher_No"],
-      where: { vType: req.body.vType, CompanyId: req.body.CompanyId }
+    const nextNo = await nextVoucherNo(Vouchers, {
+      vType: req.body.vType,
+      CompanyId: req.body.CompanyId,
+      suffix: fiscalYear.suffix,
     });
       const result = await Vouchers.create({
         ...req.body,
-        voucher_No: check == null ? 1 : parseInt(check.voucher_No) + 1,
+        voucher_No: nextNo,
         voucher_Id: !req.body.voucher_Id?`${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"
         }-${req.body.vType
-        }-${check == null ? 1 : parseInt(check.voucher_No) + 1
+        }-${nextNo
         }/${fiscalYear.suffix}`:req.body.voucher_Id,
         FiscalYearId: fiscalYear.id,
       }).catch();
@@ -1283,16 +1284,23 @@ routes.post("/makeTransaction", async (req, res) => {
         createdAt: req.body.tranDate
       };
 
-      const lastVoucher = await Vouchers.findOne({
-        where: { vType: v.vType, CompanyId: v.CompanyId },
-        order: [["voucher_No", "DESC"]]
+      const yearSuffix = fiscalYear.suffix;
+      v.voucher_No = await nextVoucherNo(Vouchers, {
+        vType: v.vType,
+        CompanyId: v.CompanyId,
+        suffix: yearSuffix,
+        transaction: t,
       });
 
-      v.voucher_No = lastVoucher ? lastVoucher.voucher_No + 1 : 1;
-      const yearSuffix = fiscalYear.suffix;
-
+      // Loose == on purpose, matching every other company-prefix site in the
+      // codebase. CompanyId arrives from the frontend as a string ("1"), so
+      // the strict === this used to use failed both comparisons and fell
+      // through to the "ACS" default - labelling SNS (and CLS) payments and
+      // receipts as ACS. ACS itself came out right only by accident, which is
+      // why this went unnoticed: it produced ACS-BPV-… numbers on Sea Net
+      // vouchers, visible in the SNS bank ledger.
       v.voucher_Id = `${
-        v.CompanyId === 1 ? "SNS" : v.CompanyId === 2 ? "CLS" : "ACS"
+        v.CompanyId == 1 ? "SNS" : v.CompanyId == 2 ? "CLS" : "ACS"
       }-${v.vType}-${v.voucher_No}/${yearSuffix}`;
       v.FiscalYearId = fiscalYear.id;
 
@@ -1391,20 +1399,12 @@ routes.post("/createVoucher", async(req, res) => {
       });
     }
     const fiscalYear = await resolveSelectedFiscalYear(req.body.fiscalYearId);
-    const lastVoucher = await Vouchers.findOne({
-      where: {
-        vType: req.body.vType,
-        CompanyId: req.body.CompanyId,
-      },
-      order: [["voucher_No", "DESC"]],
-    })
-    if(lastVoucher==null){
-      req.body.voucher_No = 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${fiscalYear.suffix}`
-    }else{
-      req.body.voucher_No = lastVoucher.voucher_No + 1
-      req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${fiscalYear.suffix}`
-    }
+    req.body.voucher_No = await nextVoucherNo(Vouchers, {
+      vType: req.body.vType,
+      CompanyId: req.body.CompanyId,
+      suffix: fiscalYear.suffix,
+    });
+    req.body.voucher_Id = `${req.body.CompanyId == 1 ? "SNS" : req.body.CompanyId == 2 ? "CLS" : "ACS"}-${req.body.vType}-${req.body.voucher_No}/${fiscalYear.suffix}`
     req.body.FiscalYearId = fiscalYear.id
     const result = await Vouchers.create(req.body)
     for(let x of voucher_Heads){
